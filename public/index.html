@@ -4,39 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#F2EFE7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3EFE6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
 <title>Wall Duel</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Crect width='32' height='32' rx='7' fill='%23F2EFE7'/%3E%3Cg stroke='%231B1A17' stroke-width='1.5'%3E%3Crect x='5' y='5' width='9' height='9' rx='2'/%3E%3Crect x='18' y='5' width='9' height='9' rx='2'/%3E%3Crect x='5' y='18' width='9' height='9' rx='2'/%3E%3Crect x='18' y='18' width='9' height='9' rx='2'/%3E%3C/g%3E%3Crect x='5' y='14.75' width='22' height='2.5' rx='1.25' fill='%23D9542A'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Crect width='32' height='32' rx='7' fill='%23F3EFE6'/%3E%3Cg stroke='%23191816' stroke-width='1.75'%3E%3Crect x='5' y='5' width='9' height='9' rx='2'/%3E%3Crect x='18' y='5' width='9' height='9' rx='2'/%3E%3Crect x='5' y='18' width='9' height='9' rx='2'/%3E%3Crect x='18' y='18' width='9' height='9' rx='2'/%3E%3C/g%3E%3Crect x='4' y='14.5' width='24' height='3' rx='1.5' fill='%23D9542A' stroke='%23191816'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <!-- ГЛАВНАЯ -->
 <section id="home" class="screen">
-  <header class="top">
-    <div class="brand"><span data-logo="28"></span><b>WALL DUEL</b></div>
-    <div class="top-r"><button class="link-btn" data-act="rules">Правила</button><button class="icon-btn" data-act="theme" aria-label="Тема"><i data-icon="theme"></i></button></div>
+  <header class="bar">
+    <div class="brand"><span data-logo="28"></span><b class="wordmark">WALL DUEL</b></div>
+    <div class="bar-r">
+      <button class="ibtn" data-act="rules" aria-label="Правила" title="Правила"><i data-icon="book"></i></button>
+      <button class="ibtn" data-act="theme" aria-label="Сменить тему" title="Тема"><i data-icon="theme"></i></button>
+    </div>
   </header>
   <main class="hero">
-    <div class="hero-board"><svg id="heroBoard" viewBox="0 0 612 612" role="img" aria-label="Игровое поле 9 на 9: фишки и стены"></svg></div>
+    <div class="hero-board"><svg id="heroBoard" viewBox="0 0 612 612" role="img" aria-label="Игровое поле: четыре фишки и стены"></svg></div>
     <div class="hero-text">
       <div class="eyebrow">Лабиринт с кубиком · 2–4 игрока</div>
       <h1>Дойди первым.<br>Построй стену другому.</h1>
-      <p class="lead">Брось кубик и выбери: идти, поставить стену или сломать чужую. Путь до цели должен оставаться у всех.</p>
+      <p class="lead">Бросай кубик и выбирай: идти, поставить стену или сломать чужую. Путь до цели должен оставаться у всех.</p>
       <form class="stack" onsubmit="return false">
         <label class="lbl" for="name">Ваше имя</label>
-        <input id="name" class="input" maxlength="14" placeholder="Игрок" autocomplete="off">
-        <button type="button" class="btn ink" id="bCreate"><i data-icon="plus"></i>Создать комнату</button>
+        <input id="name" class="input" maxlength="14" placeholder="Как вас зовут" autocomplete="nickname">
+        <button type="button" class="btn ink lg" id="bCreate"><i data-icon="plus"></i>Создать комнату</button>
         <div class="two">
-          <button type="button" class="btn line" id="bFind"><i data-icon="search"></i>Найти комнату</button>
-          <button type="button" class="btn line" id="bLocal"><i data-icon="bot"></i>Играть здесь</button>
+          <button type="button" class="btn" id="bFind"><i data-icon="search"></i>Найти комнату</button>
+          <button type="button" class="btn" id="bLocal"><i data-icon="people"></i>Играть здесь</button>
         </div>
         <p class="note">«Играть здесь» — с ботами или вдвоём на одном экране.</p>
-        <p class="note warn hidden" id="offlineNote">Онлайн-режим работает при запуске через сервер: <code>npm start</code></p>
+        <p class="note warn hidden" id="offlineNote">Онлайн работает при запуске через сервер: <code>npm start</code></p>
       </form>
     </div>
   </main>
@@ -44,44 +47,45 @@
 
 <!-- СОЗДАНИЕ КОМНАТЫ -->
 <section id="create" class="screen hidden">
-  <header class="top"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
+  <header class="bar"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
   <main class="center-main">
-    <form class="sheet" onsubmit="return false">
+    <form class="card form-card" onsubmit="return false">
       <span data-logo="40"></span>
-      <h1>Новая комната</h1>
-      <p class="muted-2">Вы станете хостом: пригласите друзей по коду или добавьте ботов.</p>
-      <label class="lbl big-gap" for="roomTitle">Название</label>
-      <input id="roomTitle" class="input focus-ink" maxlength="24" autocomplete="off">
+      <h1 class="h2">Новая комната</h1>
+      <p class="muted">Вы станете хостом: позовёте друзей по коду или добавите ботов.</p>
+      <label class="lbl gap-t" for="roomTitle">Название</label>
+      <input id="roomTitle" class="input" maxlength="24" autocomplete="off">
       <div class="opt"><div><b>Показывать в списке</b><span>Комнату увидят в «Найти комнату»</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="roomPublic" aria-label="Показывать в списке"><span></span></button></div>
-      <div class="row-btns"><button type="button" class="btn ink grow" id="bCreateGo">Создать</button><button type="button" class="btn line" data-go="home">Отмена</button></div>
+      <div class="row-btns"><button type="button" class="btn ink grow" id="bCreateGo">Создать</button><button type="button" class="btn" data-go="home">Отмена</button></div>
     </form>
   </main>
 </section>
 
 <!-- ПОИСК КОМНАТЫ -->
 <section id="find" class="screen hidden">
-  <header class="top"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
+  <header class="bar"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
   <main class="wide-main">
     <h1 class="h1">Найти комнату</h1>
-    <section class="codebar">
-      <div>
+    <section class="codebar card">
+      <div class="code-col">
         <div class="lbl" id="codeLbl">Код из приглашения</div>
         <div class="cells" role="group" aria-labelledby="codeLbl" id="codeCells">
-          <input class="cd" aria-label="Буква 1" maxlength="1" autocomplete="off" autocapitalize="characters">
-          <input class="cd" aria-label="Буква 2" maxlength="1" autocomplete="off" autocapitalize="characters">
-          <input class="cd" aria-label="Буква 3" maxlength="1" autocomplete="off" autocapitalize="characters">
-          <input class="cd" aria-label="Буква 4" maxlength="1" autocomplete="off" autocapitalize="characters">
+          <input class="cd" aria-label="Буква 1" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text">
+          <input class="cd" aria-label="Буква 2" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text">
+          <input class="cd" aria-label="Буква 3" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text">
+          <input class="cd" aria-label="Буква 4" maxlength="1" autocomplete="off" autocapitalize="characters" inputmode="text">
         </div>
+        <p class="note">4 латинские буквы, регистр не важен</p>
       </div>
-      <button class="btn ink big" id="bJoinCode" disabled>Войти</button>
-      <p class="note">4 буквы, регистр не важен</p>
+      <button class="btn ink lg" id="bJoinCode" disabled>Войти</button>
     </section>
     <section>
-      <div class="rooms-head"><h2>Открытые комнаты</h2><span class="note" id="roomsCount"></span></div>
-      <div class="table-wrap"><table class="rooms"><thead><tr><th>Название</th><th>Хост</th><th>Игроки</th><th>Код</th><th></th></tr></thead><tbody id="roomList"></tbody></table></div>
+      <div class="sec-h"><h2 class="h3">Открытые комнаты</h2><span class="note" id="roomsCount"></span></div>
+      <ul class="rooms" id="roomList"></ul>
       <div class="empty hidden" id="roomsEmpty">
-        <svg width="160" height="120" viewBox="0 0 160 120" fill="none" aria-hidden="true"><g stroke="var(--line-2)" stroke-width="1.5" stroke-dasharray="3 4"><rect x="20" y="16" width="36" height="36" rx="4"/><rect x="62" y="16" width="36" height="36" rx="4"/><rect x="104" y="16" width="36" height="36" rx="4"/><rect x="20" y="58" width="36" height="36" rx="4"/><rect x="104" y="58" width="36" height="36" rx="4"/></g><rect x="62" y="58" width="36" height="36" rx="4" fill="var(--sunk)" stroke="var(--ink)" stroke-width="1.5"/><rect x="58" y="100" width="78" height="6" rx="2" fill="var(--p2)" stroke="var(--stroke)" stroke-width="1.5"/></svg>
-        <p>Открытых комнат пока нет.</p><button class="btn line" data-go="create">Создать свою</button>
+        <svg width="140" height="104" viewBox="0 0 160 120" fill="none" aria-hidden="true"><g stroke="var(--line-2)" stroke-width="1.75" stroke-dasharray="4 4"><rect x="20" y="16" width="36" height="36" rx="6"/><rect x="62" y="16" width="36" height="36" rx="6"/><rect x="104" y="16" width="36" height="36" rx="6"/><rect x="20" y="58" width="36" height="36" rx="6"/><rect x="104" y="58" width="36" height="36" rx="6"/></g><rect x="62" y="58" width="36" height="36" rx="6" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.75"/><rect x="58" y="100" width="44" height="7" rx="3.5" fill="var(--p2)" stroke="var(--ink)" stroke-width="1.5"/></svg>
+        <p>Открытых комнат пока нет</p>
+        <button class="btn" data-go="create"><i data-icon="plus"></i>Создать свою</button>
       </div>
     </section>
   </main>
@@ -89,34 +93,34 @@
 
 <!-- ЛОКАЛЬНАЯ ИГРА -->
 <section id="local" class="screen hidden">
-  <header class="top"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
+  <header class="bar"><button class="back" data-go="home"><i data-icon="back"></i>Назад</button></header>
   <main class="center-main">
-    <form class="sheet" onsubmit="return false">
-      <h1>Играть здесь</h1>
-      <p class="muted-2">Все люди за одним экраном, остальные места займут боты.</p>
-      <div class="lbl big-gap">Сколько игроков</div>
+    <form class="card form-card" onsubmit="return false">
+      <h1 class="h2">Играть здесь</h1>
+      <p class="muted">Люди ходят по очереди за одним экраном, остальные места займут боты.</p>
+      <div class="lbl gap-t">Сколько игроков</div>
       <div class="seg" id="segN" role="radiogroup" aria-label="Число игроков"></div>
       <div id="localSeats" class="lseats"></div>
       <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, ещё бросок, заморозка</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="localBonus" aria-label="Бонус-клетки"><span></span></button></div>
-      <div class="row-btns"><button type="button" class="btn ink grow" id="bLocalGo">Играть</button><button type="button" class="btn line" data-go="home">Отмена</button></div>
+      <div class="row-btns"><button type="button" class="btn ink grow" id="bLocalGo">Играть</button><button type="button" class="btn" data-go="home">Отмена</button></div>
     </form>
   </main>
 </section>
 
 <!-- ЛОББИ -->
 <section id="lobby" class="screen hidden">
-  <header class="top">
-    <div class="brand"><span data-logo="28"></span><b>WALL DUEL</b></div>
-    <button class="back" id="lbLeave"><i data-icon="exit"></i>Покинуть комнату</button>
+  <header class="bar">
+    <div class="brand"><span data-logo="28"></span><b class="wordmark">WALL DUEL</b></div>
+    <button class="back" id="lbLeave"><i data-icon="exit"></i><span>Покинуть комнату</span></button>
   </header>
   <main class="lobby-main">
     <section class="lb-left">
       <div class="eyebrow">Код комнаты</div>
-      <div class="bigcode mono" id="lbCode"></div>
+      <button class="bigcode mono" id="lbCode" title="Скопировать код"></button>
       <div class="lb-title" id="lbTitle"></div>
-      <div class="row-btns wrap" id="lbShare">
-        <button class="btn line-ink" id="lbLink"><i data-icon="link"></i>Скопировать ссылку</button>
-        <button class="btn line" id="lbCopy"><i data-icon="copy"></i>Код</button>
+      <div class="row-btns wrap">
+        <button class="btn ink" id="lbLink"><i data-icon="link"></i>Скопировать ссылку</button>
+        <button class="btn" id="lbCopy"><i data-icon="copy"></i>Код</button>
       </div>
       <div class="opts">
         <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, ещё бросок, заморозка</span></div><button class="sw" role="switch" id="optBonus" aria-label="Бонус-клетки"><span></span></button><em id="optBonusTxt"></em></div>
@@ -124,10 +128,10 @@
       </div>
     </section>
     <section class="lb-right">
-      <div class="rooms-head"><div class="eyebrow">Игроки</div><span class="mono note" id="lbCount"></span></div>
-      <div id="lbSeats" class="slots"></div>
+      <div class="sec-h"><div class="eyebrow">Игроки</div><span class="mono note" id="lbCount"></span></div>
+      <ul id="lbSeats" class="slots"></ul>
       <div class="lb-foot">
-        <button class="btn ink big" id="lbStart">Начать игру</button>
+        <button class="btn ink lg wide" id="lbStart">Начать игру</button>
         <p class="note center-t" id="lbNote"></p>
         <div class="waiting hidden" id="lbWait"><span class="dots"><i></i><i></i><i></i></span>Ждём, пока хост начнёт игру</div>
       </div>
@@ -137,97 +141,98 @@
 
 <!-- ИГРА -->
 <section id="game" class="screen hidden">
-  <header class="top game-top">
-    <div class="g-l">
-      <div class="brand"><span data-logo="28"></span><b>WALL DUEL</b></div>
-      <span class="vr"></span>
-      <span class="meta"><span class="lab">Комната</span> <b class="mono" id="gCode"></b></span>
-      <span class="meta">Ход <b class="mono" id="gTurn"></b></span>
+  <header class="bar gbar">
+    <div class="brand"><span data-logo="26"></span><b class="wordmark">WALL DUEL</b>
+      <button class="roomchip" id="gRoom" title="Скопировать код комнаты"><span class="lab">Комната</span><b class="mono" id="gCode"></b></button>
     </div>
-    <nav class="g-r" aria-label="Меню игры">
-      <button class="chip" data-act="log"><i data-icon="list"></i><span>Журнал</span></button>
-      <button class="chip" data-act="rules"><i data-icon="book"></i><span>Правила</span></button>
-      <button class="chip" data-act="mute"><i data-icon="sound" id="muteIc"></i><span>Звук</span></button>
-      <button class="chip" data-act="theme"><i data-icon="theme"></i><span>Тема</span></button>
-      <button class="chip" data-act="exit"><i data-icon="exit"></i><span>Выйти</span></button>
+    <nav class="bar-r" aria-label="Меню игры">
+      <button class="ibtn only-m" data-act="sheet" aria-label="Журнал и реакции"><i data-icon="chat"></i></button>
+      <button class="ibtn" data-act="rules" aria-label="Правила" title="Правила"><i data-icon="book"></i></button>
+      <button class="ibtn" data-act="mute" aria-label="Звук" title="Звук"><i data-icon="sound" id="muteIc"></i></button>
+      <button class="ibtn" data-act="theme" aria-label="Сменить тему" title="Тема"><i data-icon="theme"></i></button>
+      <button class="ibtn" data-act="exit" aria-label="Выйти из игры" title="Выйти"><i data-icon="exit"></i></button>
     </nav>
   </header>
-  <main class="gm">
-    <section class="pl" aria-label="Игроки">
-      <div class="eyebrow pad">Игроки · <span id="plN"></span></div>
-      <div id="players" class="pl-list"></div>
-      <div class="eyebrow pad react-l" id="reactL">Реакция</div>
-      <div id="emotes" class="emotes"></div>
-    </section>
-    <section class="bd" aria-label="Поле">
-      <div class="turnrow" id="turnrow"></div>
+  <main class="gwrap">
+    <section class="stage" aria-label="Поле">
+      <ol class="chips" id="chips" aria-label="Игроки"></ol>
       <div class="board"><svg id="board" viewBox="0 0 612 612" role="img" aria-label="Игровое поле 9 на 9"></svg></div>
-      <div class="confirm hidden" id="confirm"><span>Поставить стену здесь?</span><button id="cfNo">Отмена</button><button class="yes" id="cfYes">Поставить</button></div>
+      <div class="confirm hidden" id="confirm" role="group" aria-label="Поставить стену">
+        <span>Стена здесь?</span>
+        <button id="cfRot" aria-label="Повернуть стену"><i data-icon="rotate"></i></button>
+        <button id="cfNo" aria-label="Отмена"><i data-icon="x"></i></button>
+        <button class="yes" id="cfYes">Поставить</button>
+      </div>
       <p class="tip" id="hint"></p>
     </section>
-    <aside class="side" aria-label="Ход">
-      <div class="who">
-        <div class="eyebrow">Сейчас ходит</div>
-        <div class="who-row"><span id="whoShape"></span><span class="who-name" id="whoName"></span></div>
-      </div>
-      <div class="dock" id="dock">
-        <button class="dicecard" id="dieBtn" aria-label="Бросить кубик">
-          <span class="die" id="die" role="img" aria-label="Кубик"></span>
-          <span class="dnum"><span class="mono num" id="dNum">–</span><span class="dtxt" id="dTxt"></span></span>
-        </button>
-        <div class="acts-wrap">
-          <div class="eyebrow acts-l">Действие</div>
-          <div class="acts" id="acts">
-            <button data-m="move" aria-pressed="false"><i data-icon="walk" data-size="24"></i><b>Идти</b><small id="aMove">1–3</small></button>
-            <button data-m="wall" aria-pressed="false"><i data-icon="wall" data-size="24"></i><b>Стена</b><small id="aWall"></small></button>
-            <button data-m="break" aria-pressed="false"><i data-icon="hammer" data-size="24"></i><b>Сломать</b><small id="aBreak">нужна 6</small></button>
+    <aside class="panel" aria-label="Ход">
+      <div class="dock">
+        <div class="turncard" id="turncard">
+          <button class="die-btn" id="dieBtn" aria-label="Бросить кубик"><span class="die" id="die"></span></button>
+          <div class="tc-body">
+            <div class="tc-who" id="tcWho"></div>
+            <div class="tc-status" id="tcStatus"></div>
           </div>
-          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span id="rollTxt">Бросить кубик</span></button>
+          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span>Бросить</span></button>
+        </div>
+        <div class="acts" id="acts" role="group" aria-label="Действие">
+          <button data-m="move" aria-pressed="false"><i data-icon="move" data-size="24"></i><b>Идти</b><small id="aMove"></small></button>
+          <button data-m="wall" aria-pressed="false"><i data-icon="wall" data-size="24"></i><b>Стена</b><small id="aWall"></small></button>
+          <button data-m="break" aria-pressed="false"><i data-icon="break" data-size="24"></i><b>Сломать</b><small id="aBreak"></small></button>
         </div>
       </div>
-      <div class="logbox" id="logbox">
-        <div class="eyebrow">Журнал</div>
-        <ol id="log"></ol>
+      <div class="block pblock">
+        <div class="sec-h"><span class="eyebrow">Игроки</span><span class="note">ход <b class="mono" id="gTurn"></b></span></div>
+        <ol id="players" class="plist"></ol>
+      </div>
+      <div class="extra" id="extra">
+        <div class="sheet-h"><b>Журнал и реакции</b><button class="ibtn" data-act="sheet-close" aria-label="Закрыть"><i data-icon="x"></i></button></div>
+        <div class="reacts" id="emotes"></div>
+        <div class="block">
+          <div class="sec-h"><span class="eyebrow">Журнал</span></div>
+          <ol id="log" class="log"></ol>
+        </div>
       </div>
     </aside>
   </main>
+  <div class="scrim" id="scrim"></div>
 </section>
 
-<div id="conn" class="conn hidden" role="status">Соединение потеряно, переподключаемся…</div>
-<div id="toast" class="toast" role="status"></div>
+<div id="conn" class="conn hidden" role="status"><span class="dots"><i></i><i></i><i></i></span>Связь потеряна, переподключаемся…</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <!-- ПРАВИЛА -->
-<div id="rules" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesT"><div class="sheet rules">
-  <div class="rules-head"><h1 id="rulesT">Правила</h1><button class="icon-btn" data-close aria-label="Закрыть"><i data-icon="x"></i></button></div>
-  <section><h3>Цель</h3><p>Первым дойти до линии напротив своей стартовой. Свою стартовую линию (она отмечена цветной кромкой) нужно защищать от чужих фишек.</p></section>
-  <section><h3>Ход</h3><p>Бросьте кубик и выберите одно действие.</p>
+<div id="rules" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesT"><div class="card rules">
+  <div class="modal-h"><h1 class="h2" id="rulesT">Правила</h1><button class="ibtn" data-close aria-label="Закрыть"><i data-icon="x"></i></button></div>
+  <section><h3>Цель</h3><p>Первым дойти до противоположного края поля. Ваш «дом» — край с вашей цветной кромкой: туда идут соперники.</p></section>
+  <section><h3>Ход</h3><p>Бросьте кубик и выберите одно действие:</p>
     <div class="rcards">
-      <div class="rc"><i data-icon="walk" data-size="28"></i><b>Идти</b><p>На 1–3 клетки: 1–2 дают 1 шаг, 3–4 дают 2, 5–6 дают 3. Можно остановиться раньше. Сквозь стены и фишки идти нельзя.</p></div>
-      <div class="rc"><i data-icon="wall" data-size="28"></i><b>Стена</b><p>Длиной 2 клетки. Запас ограничен: 10, 8 или 6 штук. Нельзя полностью закрывать путь к цели любого игрока.</p></div>
-      <div class="rc"><i data-icon="hammer" data-size="28"></i><b>Сломать</b><p>Только если выпала шестёрка. Убирает любую стену на поле.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="28"></i></span><b>Идти</b><p>На 1–3 клетки: 1–2 → 1 шаг, 3–4 → 2, 5–6 → 3. Можно остановиться раньше. Сквозь стены и фишки нельзя.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="28"></i></span><b>Стена</b><p>Длиной в 2 клетки. Запас: 10, 8 или 6 штук. Полностью закрывать чей-то путь нельзя.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="28"></i></span><b>Сломать</b><p>Только на шестёрке: убирает любую стену с поля.</p></div>
     </div>
   </section>
-  <section><h3>Бонус-клетки</h3><p>Срабатывают, когда вы остановились на них, и исчезают.</p>
+  <section><h3>Бонус-клетки</h3><p>Срабатывают, если остановиться на них, и исчезают.</p>
     <div class="rcards">
-      <div class="rc dash"><i data-icon="bonuswall" data-size="28"></i><b>+2 стены</b><p>к вашему запасу</p></div>
-      <div class="rc dash"><i data-icon="again" data-size="28"></i><b>Ещё бросок</b><p>ходите сразу ещё раз</p></div>
-      <div class="rc dash"><i data-icon="snow" data-size="28"></i><b>Заморозка</b><p>следующий игрок пропускает ход</p></div>
+      <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="plusWall" data-size="28"></i></span><b>+2 стены</b><p>к вашему запасу</p></div>
+      <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="again" data-size="28"></i></span><b>Ещё бросок</b><p>сразу ходите снова</p></div>
+      <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="freeze" data-size="28"></i></span><b>Заморозка</b><p>следующий игрок пропускает ход</p></div>
     </div>
   </section>
-  <section><h3>Онлайн</h3><p>Хост создаёт комнату и делится кодом или ссылкой, потом запускает игру. Можно добавить ботов. Если вы отключились, бот доиграет ваши ходы, а при возврате вы продолжите с того же места.</p></section>
-  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками. На телефоне первое касание показывает превью, кнопка «Поставить» подтверждает. Клавиши: <kbd>Пробел</kbd> бросок, <kbd>M</kbd> идти, <kbd>W</kbd> стена, <kbd>B</kbd> сломать.</p></section>
-  <button class="btn ink" data-close>Понятно</button>
+  <section><h3>Онлайн</h3><p>Хост создаёт комнату, делится кодом или ссылкой и запускает игру. Можно добавить ботов. Если связь пропала, за вас походит бот, а при возврате вы продолжите с того же места.</p></section>
+  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками, <kbd>R</kbd> или правый клик поворачивают её. На телефоне касание показывает стену, а кнопка «Поставить» подтверждает. Клавиши: <kbd>Пробел</kbd> — бросок, <kbd>M</kbd> — идти, <kbd>W</kbd> — стена, <kbd>B</kbd> — сломать.</p></section>
+  <button class="btn ink wide" data-close>Понятно</button>
 </div></div>
 
 <!-- ПОБЕДА -->
 <div id="win" class="modal win hidden" role="dialog" aria-modal="true" aria-labelledby="winT">
-  <svg id="winBoard" class="win-bg" viewBox="0 0 612 612" aria-hidden="true"></svg><div class="win-veil"></div>
-  <div class="sheet winsheet">
-    <div class="win-head"><span id="winTrophy"></span><div><div class="eyebrow">Победа</div><h1 id="winT"></h1><div class="muted-2" id="winSub"></div></div></div>
+  <svg id="winBoard" class="win-bg" viewBox="0 0 612 612" aria-hidden="true"></svg>
+  <div class="card winsheet">
+    <div class="win-head"><span id="winTrophy"></span><div><div class="eyebrow">Победа</div><h1 id="winT"></h1><div class="muted" id="winSub"></div></div></div>
     <div class="stats" id="winStats"></div>
     <table class="rank"><thead><tr><th>#</th><th>Игрок</th><th class="r">Стен</th><th class="r">До цели</th></tr></thead><tbody id="winRows"></tbody></table>
-    <div class="row-btns"><button class="btn ink grow" id="bAgain">Реванш</button><button class="btn line" id="bWinExit">Выйти</button></div>
-    <p class="note" id="winNote"></p>
+    <div class="row-btns"><button class="btn ink grow" id="bAgain">Реванш</button><button class="btn" id="bWinExit">Выйти</button></div>
+    <p class="note center-t" id="winNote"></p>
   </div>
 </div>
 
