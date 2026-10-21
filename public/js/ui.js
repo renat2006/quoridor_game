@@ -12,7 +12,8 @@ const START_DIST = N - 1;
 let net = null, view = null, g = null, gameId = null, seen = 0;
 let mode = 'move', preview = null, turnKey = '', prevWalls = 0, pending = false, lastPtr = 'mouse';
 let isLocal = false, wasOnline = false, listTimer = 0, rollTimer = 0, dieShown = null, rolling = false;
-const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true };
+const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, botLevel: 'normal' };
+const setSeg = (el, val) => el.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.l === val));
 
 /* ---------- тема, иконки, мелочи ---------- */
 const THEMES = ['auto', 'light', 'dark'];
@@ -153,11 +154,13 @@ function renderLocal() {
     box.appendChild(r);
   }
   setSwitch($('#localBonus'), localCfg.bonus);
+  setSeg($('#localLevel'), localCfg.botLevel);
 }
 $('#localBonus').onclick = (e) => { localCfg.bonus = !localCfg.bonus; setSwitch(e.currentTarget, localCfg.bonus); };
+$('#localLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.botLevel = b.dataset.l; setSeg($('#localLevel'), b.dataset.l); } };
 $('#bLocalGo').onclick = () => {
   const seats = Array.from({ length: localCfg.n }, (_, i) => ({ name: localCfg.names[i].trim() || 'Игрок ' + (i + 1), bot: localCfg.bot[i] }));
-  useLocal().setup(seats, { bonus: localCfg.bonus });
+  useLocal().setup(seats, { bonus: localCfg.bonus, botLevel: localCfg.botLevel });
 };
 
 /* ---------- лобби ---------- */
@@ -181,12 +184,15 @@ function renderLobby() {
   bonus.disabled = pub.disabled = !host;
   $('#optBonusTxt').textContent = host ? '' : (v.opts.bonus ? 'Включены' : 'Выключены');
   $('#optPublicTxt').textContent = host ? '' : (v.isPublic ? 'Видна' : 'Только по коду');
+  setSeg($('#optLevel'), v.opts.botLevel || 'normal'); $('#optLevel').classList.toggle('hidden', !host);
+  $('#optLevelTxt').textContent = host ? '' : (v.opts.botLevel === 'easy' ? 'Лёгкие' : 'Сильные');
   $('#lbStart').classList.toggle('hidden', !host); $('#lbWait').classList.toggle('hidden', host);
   $('#lbStart').disabled = v.seats.length < 2;
   $('#lbNote').textContent = host && v.seats.length < 2 ? 'Нужно минимум 2 игрока: позовите друга по коду или добавьте бота.' : '';
 }
 $('#optBonus').onclick = (e) => net.send({ t: 'opts', bonus: !e.currentTarget.classList.contains('on') });
 $('#optPublic').onclick = (e) => net.send({ t: 'opts', isPublic: !e.currentTarget.classList.contains('on') });
+$('#optLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) net.send({ t: 'opts', botLevel: b.dataset.l }); };
 $('#lbStart').onclick = () => net.send({ t: 'start' });
 $('#lbLeave').onclick = () => net.send({ t: 'leave' });
 $('#lbLink').onclick = () => copy(`${location.origin}/?room=${view.code}`, 'Ссылка-приглашение скопирована');

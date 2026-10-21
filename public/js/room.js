@@ -1,6 +1,6 @@
 // Логика комнаты: места, лобби, ход партии, боты. Не зависит от транспорта,
 // поэтому одинаково работает на сервере (онлайн) и в браузере (локальная игра).
-import { newGame, doRoll, act, botAct, snapshot, cur } from './engine.js';
+import { newGame, doRoll, act, botAct, snapshot, cur, BOT_LEVELS } from './engine.js';
 
 const MAX = 4;
 const clean = (s, n = 14) => String(s || '').replace(/[<>&"]/g, '').trim().slice(0, n);
@@ -10,7 +10,7 @@ export class Room {
     this.code = code; this.title = clean(title, 24) || 'Комната'; this.isPublic = !!isPublic;
     this.onUpdate = onUpdate; this.onEmote = onEmote;
     this.seats = []; this.host = -1; this.phase = 'lobby';
-    this.opts = { bonus: true }; this.game = null; this.timer = null; this.lastActive = Date.now();
+    this.opts = { bonus: true, botLevel: 'normal' }; this.game = null; this.timer = null; this.lastActive = Date.now();
   }
 
   idxOf(token) { return this.seats.findIndex((s) => s.token === token); }
@@ -58,6 +58,7 @@ export class Room {
     if (!this.isHost(by) || this.phase !== 'lobby') return;
     if (typeof o.bonus === 'boolean') this.opts.bonus = o.bonus;
     if (typeof o.isPublic === 'boolean') this.isPublic = o.isPublic;
+    if (BOT_LEVELS.includes(o.botLevel)) this.opts.botLevel = o.botLevel;
     this.touch();
   }
   start(by) {
@@ -104,7 +105,7 @@ export class Room {
     const s = this.seats[g.turn];
     if (!s || !(s.bot || (!s.connected && !s.local))) return;
     if (g.phase === 'roll') this.timer = setTimeout(() => { doRoll(g); this.afterPlay(); }, 800);
-    else this.timer = setTimeout(() => { act(g, botAct(g)); this.afterPlay(); }, 1000);
+    else this.timer = setTimeout(() => { act(g, botAct(g, Math.random, this.opts.botLevel)); this.afterPlay(); }, 1000);
   }
 
   destroy() { clearTimeout(this.timer); }

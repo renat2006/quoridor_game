@@ -193,40 +193,126 @@ export function act(g, a) {
   return bad('Неизвестное действие');
 }
 
-// ИИ: выбирает действие для текущего игрока (ничего не применяет).
-export function botAct(g, rng = Math.random) {
+/* ======================== ИИ ========================
+   Оценка позиции — разница кратчайших путей до цели (стандартный подход для Quoridor),
+   переведённая в ожидаемое число ходов с учётом кубика, плюс цена стен в запасе:
+   жадный бот иначе тратит стены сразу. Вариантов стен ~130, поэтому рассматриваются только стены,
+   перерезающие кратчайший путь лидеров. Взгляд на ответ соперника (expectimax) и оценка уязвимости
+   пути проверялись турнирами и не дали значимого выигрыша — кубик слишком сильно влияет на исход.
+   Уровни: easy — жадный бот с шумом; normal — «сильный», оценка с подобранными весами. */
+export const BOT_LEVELS = ['easy', 'normal'];
+
+const WIN = 10000;
+function goalReached(p) { return SIDES[p.side].goal(p.x, p.y); }
+
+/* Один кратчайший путь (список рёбер) для игрока p, без учёта фишек. */
+function shortestPath(g, p) {
+  const goal = SIDES[p.side].goal, start = key(p.x, p.y);
+  const prev = new Map([[start, null]]); let fr = [[p.x, p.y]], end = null;
+  while (fr.length && !end) {
+    const nx = [];
+    for (const [x, y] of fr) {
+      if (goal(x, y)) { end = key(x, y); break; }
+      for (const [dx, dy] of DIRS) {
+        const a = x + dx, b = y + dy;
+        if (blocked(g, x, y, a, b)) continue;
+        const k = key(a, b); if (prev.has(k)) continue;
+        prev.set(k, key(x, y)); nx.push([a, b]);
+      }
+    }
+    fr = nx;
+  }
+  const edges = [];
+  for (let k = end; k && prev.get(k); k = prev.get(k)) edges.push([prev.get(k), k]);
+  return edges.map(([u, v]) => [...u.split(',').map(Number), ...v.split(',').map(Number)]);
+}
+
+/* Стены, перекрывающие хотя бы одно ребро кратчайшего пути целей. */
+function wallCandidates(g, targets) {
+  const seen = new Set(), out = [];
+  const add = (o, x, y) => { const k = o + x + ',' + y; if (seen.has(k)) return; seen.add(k); if (wallLegal(g, o, x, y).ok) out.push({ t: 'wall', o, x, y }); };
+  for (const t of targets) for (const [x, y, a, b] of shortestPath(g, t)) {
+    if (a === x) { const top = Math.min(y, b); add('h', x, top); add('h', x - 1, top); }
+    else { const l = Math.min(x, a); add('v', l, y); add('v', l, y - 1); }
+  }
+  return out;
+}
+
+/* Ожидаемое число ходов, чтобы пройти d клеток: кубик даёт 1, 2 или 3 шага с равной вероятностью. */
+const TURNS = (() => { const t = [0]; for (let d = 1; d < 200; d++) t[d] = 1 + (t[d - 1] + t[Math.max(0, d - 2)] + t[Math.max(0, d - 3)]) / 3; return t; })();
+const turnsTo = (d) => (d === Infinity ? 99 : TURNS[Math.min(d, 199)]);
+
+/* Настройки оценки (подобраны турнирами ботов, см. test/bench.js). */
+export const AI = { wallValue: [0.2, 0.6, 1], bonus: { wall: 2, again: 12, freeze: 8 } };
+
+/* Оценка с точки зрения игрока me — в «десятых долях хода»: насколько ближе я к финишу, чем лидер
+   среди соперников, плюс цена стен в запасе (она падает, когда соперник у цели и стену пора тратить). */
+function evaluate(g, me) {
+  if (goalReached(me)) return WIN;
+  let lead = Infinity;
+  for (const q of g.players) if (q !== me) { if (goalReached(q)) return -WIN; lead = Math.min(lead, dist(g, q)); }
+  const lt = turnsTo(lead), wv = AI.wallValue[lt <= 2 ? 0 : lt <= 3.5 ? 1 : 2];
+  return 10 * (lt - turnsTo(dist(g, me))) + wv * me.walls;
+}
+
+
+/* Применить действие «понарошку» и вернуть функцию отката. */
+function tryAction(g, p, a) {
+  if (a.t === 'move') { const ox = p.x, oy = p.y; p.x = a.x; p.y = a.y; return () => { p.x = ox; p.y = oy; }; }
+  if (a.t === 'wall') { const s = a.o === 'h' ? g.H : g.V, k = key(a.x, a.y); s.add(k); p.walls--; return () => { s.delete(k); p.walls++; }; }
+  if (a.t === 'break') { const w = g.walls[a.i], s = w.o === 'h' ? g.H : g.V, k = key(w.x, w.y); s.delete(k); return () => s.add(k); }
+  return () => {};
+}
+
+function candidates(g, p, steps, canBreak) {
+  const acts = [];
+  reach(g, p, steps).forEach((d, k) => { const [x, y] = k.split(',').map(Number); acts.push({ t: 'move', x, y, bonus: g.bonus[k] }); });
+  if (p.walls > 0) {
+    const opps = g.players.filter((q) => q !== p).sort((a, b) => dist(g, a) - dist(g, b)).slice(0, 2);
+    acts.push(...wallCandidates(g, opps));
+  }
+  if (canBreak) g.walls.forEach((w, i) => acts.push({ t: 'break', i }));
+  return acts;
+}
+
+export function botAct(g, rng = Math.random, level = 'normal') {
+  if (level === 'easy') return greedyAct(g, rng);
+  const p = cur(g), acts = candidates(g, p, maxSteps(g.roll), g.roll === 6 && g.walls.length > 0);
+  let best = null, bestV = -Infinity;
+  for (const a of acts) {
+    const undo = tryAction(g, p, a);
+    let v = goalReached(p) ? WIN * 2 : evaluate(g, p);
+    undo();
+    if (a.bonus) v += AI.bonus[a.bonus];
+    if (a.t === 'break') v -= 3; // ломать стоит, только если это заметно лучше
+    v += rng() * 0.5;
+    if (v > bestV) { bestV = v; best = a; }
+  }
+  if (!best) return { t: 'pass' };
+  const { bonus, ...act } = best;
+  return act;
+}
+
+/* Лёгкий уровень: прежний жадный бот с заметным шумом. */
+function greedyAct(g, rng) {
   const p = cur(g), r = g.roll, base = dist(g, p);
   const opps = g.players.filter((q) => q !== p);
   const oBase = opps.map((q) => dist(g, q));
   const leader = Math.min(...oBase);
   let best = null;
-  const consider = (s, a) => { s += rng() * 2; if (!best || s > best.s) best = { s, a }; };
-
+  const consider = (s, a) => { s += rng() * 12; if (!best || s > best.s) best = { s, a }; };
   reach(g, p, maxSteps(r)).forEach((d, k) => {
     const [x, y] = k.split(',').map(Number), ox = p.x, oy = p.y;
     p.x = x; p.y = y; const nd = dist(g, p); p.x = ox; p.y = oy;
-    let s = (base - nd) * 10;
-    const b = g.bonus[k];
-    if (b === 'wall') s += p.walls < 3 ? 6 : 3;
-    if (b === 'again') s += 8;
-    if (b === 'freeze') s += 5;
-    consider(s, { t: 'move', x, y });
+    consider((base - nd) * 10 + (g.bonus[k] ? 5 : 0), { t: 'move', x, y });
   });
-  if (p.walls > 0) for (const o of ['h', 'v']) for (let x = 0; x < N - 1; x++) for (let y = 0; y < N - 1; y++) {
-    if (!wallLegal(g, o, x, y).ok) continue;
-    const set = o === 'h' ? g.H : g.V; set.add(key(x, y));
-    let s = -1 - (p.walls <= 2 ? 4 : 0);
-    opps.forEach((q, i) => { s += (dist(g, q) - oBase[i]) * 10 * (oBase[i] === leader ? 1.8 : 0.7) * (oBase[i] <= 3 ? 1.4 : 1); });
-    s -= (dist(g, p) - base) * 13;
-    set.delete(key(x, y));
-    consider(s, { t: 'wall', o, x, y });
+  if (p.walls > 0) for (const a of wallCandidates(g, opps)) {
+    const undo = tryAction(g, p, a);
+    let s = -6;
+    opps.forEach((q, i) => { s += (dist(g, q) - oBase[i]) * 10 * (oBase[i] === leader ? 1.4 : 0.5); });
+    s -= (dist(g, p) - base) * 12;
+    undo();
+    consider(s, a);
   }
-  if (r === 6) g.walls.forEach((w, i) => {
-    const set = w.o === 'h' ? g.H : g.V; set.delete(key(w.x, w.y));
-    let s = (base - dist(g, p)) * 10 - 12;
-    opps.forEach((q, j) => { s += (dist(g, q) - oBase[j]) * 6; });
-    set.add(key(w.x, w.y));
-    consider(s, { t: 'break', i });
-  });
   return best ? best.a : { t: 'pass' };
 }

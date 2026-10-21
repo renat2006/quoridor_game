@@ -43,7 +43,7 @@ export class LocalNet {
     this.seats = seats; this.opts = opts;
     this.room?.destroy();
     this.room = new Room('LOCAL', { title: 'Локальная игра', isPublic: false, onUpdate: () => this.emit() });
-    this.room.opts = { bonus: opts.bonus !== false };
+    this.room.opts = { bonus: opts.bonus !== false, botLevel: opts.botLevel || 'normal' };
     seats.forEach((s, i) => this.room.sit({ token: 'l' + i, name: s.name, bot: s.bot, local: !s.bot }));
     this.room.host = 0; this.room.start(0);
   }

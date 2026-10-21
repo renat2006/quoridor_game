@@ -1,4 +1,4 @@
-// Графика WALL DUEL: «бумага и тушь» с печатью ризографа. Всё — строки SVG, цвета из CSS-переменных.
+// Графика WALL DUEL: «бумага и тушь». Всё — строки SVG, цвета из CSS-переменных темы.
 // Всё — строки SVG; цвета берутся из CSS-переменных темы.
 import * as E from './engine.js';
 
@@ -58,75 +58,59 @@ function shapeBody(i, attrs) {
   ][i % 4];
 }
 export function shape(i, size = 24, { ghost = false } = {}) {
-  if (ghost) return `<svg class="shape" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${shapeBody(i, 'fill="none" stroke="var(--line-2)" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round"')}</svg>`;
-  return `<svg class="shape" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true"><g transform="translate(2 2)" class="ink-fill">${shapeBody(i, `style="fill:var(--p${i + 1})"`)}</g>${shapeBody(i, 'fill="none" stroke="var(--ink)" stroke-width="2.25" stroke-linejoin="round"')}</svg>`;
+  const at = ghost ? 'fill="none" stroke="var(--line-2)" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round"'
+    : `style="fill:var(--p${i + 1})" stroke="var(--ink)" stroke-width="2.25" stroke-linejoin="round"`;
+  return `<svg class="shape" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${shapeBody(i, at)}</svg>`;
 }
 
-/* ====================== ПОЛЕ: ризограф на бумаге ======================
-   Отпечаток в два прогона: цвет (краска ризографа) ложится со сдвигом относительно контура тушью.
-   Бороздки — растровые точки, цель — штриховка, бонусы — штампы, по углам метки обреза. */
-const OFF = 2; // сдвиг цветового прогона, px
+/* ====================== ПОЛЕ ======================
+   Доска говорит на том же языке, что и интерфейс: лист-карточка с контуром тушью и жёсткой тенью,
+   клетки — спокойные плашки, фишки и стены — плоский цвет, контур и печатная тень, как у кнопок.
+   Цвет — только у игроков; всё остальное — бумага и тушь. */
 export const wallRect = (o, x, y) => (o === 'h' ? { x: cx(x), y: cy(y) + S, w: 2 * S + GP, h: GP } : { x: cx(x) + S, y: cy(y), w: GP, h: 2 * S + GP });
 
 /* Определения вставляются в документ один раз (installDefs): копия в скрытом экране ломает ссылки. */
-export const boardDefs = (() => {
-  let d = `<defs>
-  <pattern id="wd-dots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1" fill="var(--ink)" fill-opacity=".22"/></pattern>
-  <pattern id="wd-dots-s" width="4" height="4" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.1" fill="var(--ink)" fill-opacity=".55"/></pattern>
-  <filter id="wd-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .45  0 0 0 0 .38  0 0 0 0 .28  0 0 0 .9 -.38"/></filter>
-  <filter id="wd-rough" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="2" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.6"/></filter>
-  <pattern id="wd-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink)" stroke-width="1.6"/></pattern>`;
-  for (let i = 0; i < 4; i++) d += `<pattern id="wd-goal${i}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" style="stroke:var(--p${i + 1})" stroke-width="2.6"/></pattern>`;
-  return d + '</defs>';
-})();
+export const boardDefs = `<defs><pattern id="wd-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink)" stroke-width="1.5"/></pattern></defs>`;
 export function installDefs() {
   if (document.getElementById('wd-defs')) return;
   document.body.insertAdjacentHTML('afterbegin', `<svg id="wd-defs" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">${boardDefs}</svg>`);
 }
 
-/* Постоянный слой: лист, растровые бороздки, клетки, метки обреза, цветные «дома». */
+/* Постоянный слой: лист, клетки и тонкие цветные кромки «домов». */
 export function boardBase(g) {
-  const a = PAD - 8, w = VB - a * 2;
-  let h = `<rect class="b-sheet" x="1" y="1" width="${VB - 2}" height="${VB - 2}" rx="16"/>` +
-    `<rect x="${a}" y="${a}" width="${w}" height="${w}" rx="10" class="b-bed"/><rect x="${a}" y="${a}" width="${w}" height="${w}" rx="10" fill="url(#wd-dots)"/>`;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) h += `<rect class="b-cell" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="6"/>`;
-  // метки обреза в углах листа
-  const m = 10, L = 9, e = VB - m;
-  h += `<path class="b-crop" d="M${m} ${m + L}V${m}H${m + L}M${e - L} ${m}H${e}V${m + L}M${e} ${e - L}V${e}H${e - L}M${m + L} ${e}H${m}V${e - L}"/>`;
+  let h = `<rect class="b-sheet" x="1" y="1" width="${VB - 2}" height="${VB - 2}" rx="18"/>`;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) h += `<rect class="b-cell" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>`;
   g.players.forEach((p) => {
-    const len = VB - 2 * 64, t = 7, o = PAD / 2 - t / 2 - 3, s = 64;
-    const r = [[s, VB - o - t], [o, s], [s, o], [VB - o - t, s]][p.side], hz = p.side % 2 === 0;
-    const W = hz ? len : t, H = hz ? t : len;
-    h += `<rect class="ink-fill" x="${r[0] + OFF}" y="${r[1] + OFF}" width="${W}" height="${H}" rx="3.5" style="fill:var(--p${p.i + 1})"/>` +
-      `<rect x="${r[0]}" y="${r[1]}" width="${W}" height="${H}" rx="3.5" class="b-out"/>`;
+    const t = 4, o = PAD / 2 - t / 2, s = 64, len = VB - 2 * s;
+    const r = [[s, VB - o - t, len, t], [o, s, t, len], [s, o, len, t], [VB - o - t, s, t, len]][p.side];
+    h += `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="2" style="fill:var(--p${p.i + 1})"/>`;
   });
-  return h + `<rect class="b-grain" x="1" y="1" width="${VB - 2}" height="${VB - 2}" rx="16" filter="url(#wd-paper)"/>`;
+  return h;
 }
 
-/* Цель того, кто ходит: штриховка его цветом и шевроны тушью. */
+/* Цель того, кто ходит: ряд окрашен его цветом, шевроны показывают направление. */
 export function goalLayer(g, i) {
   const p = g.players[i]; if (!p) return '';
   let h = '';
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++)
-    if (E.SIDES[p.side].goal(x, y)) h += `<rect class="blend" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="6" fill="url(#wd-goal${i})" opacity=".6"/>` +
-      `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${p.side * 90})"><path d="M-7 4 0-3l7 7" fill="none" stroke="var(--ink)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    if (E.SIDES[p.side].goal(x, y)) h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" style="fill:var(--p${i + 1})" fill-opacity=".16"/>` +
+      `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${p.side * 90})"><path d="M-6 3.5 0-2.5l6 6" class="b-chev"/></g>`;
   return h;
 }
 
-/* Бонус — оттиск штампа: двойное кольцо и иконка, слегка повёрнут, как поставленный рукой. */
+/* Бонус — тихая иконка на клетке. */
 export function bonusLayer(g) {
   let h = '';
   for (const [k, t] of Object.entries(g.bonus)) {
-    const [x, y] = k.split(',').map(Number), mx = cx(x) + S / 2, my = cy(y) + S / 2, rot = ((x * 7 + y * 13) % 17) - 8;
-    h += `<g class="bonus stamp blend" transform="rotate(${rot} ${mx} ${my})"><circle cx="${mx}" cy="${my}" r="19" class="st-ring"/><circle cx="${mx}" cy="${my}" r="15.5" class="st-ring2"/>` +
-      `<g transform="translate(${mx - 9.6} ${my - 9.6}) scale(.8)" fill="none" stroke="var(--stamp)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" color="var(--stamp)">${IC[BONUS_ICON[t]]}</g></g>`;
+    const [x, y] = k.split(',').map(Number);
+    h += `<g class="bonus" transform="translate(${cx(x) + 16} ${cy(y) + 16})"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${IC[BONUS_ICON[t]]}</g></g>`;
   }
   return h;
 }
 
 /* Знак хозяина на стене — его форма в миниатюре. */
 function wallMark(owner, r) {
-  const mx = r.x + r.w / 2, my = r.y + r.h / 2, f = 'fill="var(--ink)"';
+  const mx = r.x + r.w / 2, my = r.y + r.h / 2, f = 'fill="var(--surface)"';
   switch (owner % 4) {
     case 0: return `<circle cx="${mx}" cy="${my}" r="2" ${f}/>`;
     case 1: return `<rect x="${mx - 1.9}" y="${my - 1.9}" width="3.8" height="3.8" ${f}/>`;
@@ -134,10 +118,10 @@ function wallMark(owner, r) {
     default: return `<path d="M${mx} ${my - 2.6}l2.6 2.6-2.6 2.6-2.6-2.6z" ${f}/>`;
   }
 }
-function slat(o, x, y, owner, alpha = 1) {
-  const r = wallRect(o, x, y);
-  return `<rect class="ink-fill" x="${r.x + OFF}" y="${r.y + OFF}" width="${r.w}" height="${r.h}" rx="3" style="fill:var(--p${owner + 1})" opacity="${alpha}"/>` +
-    `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" class="b-out"/>${wallMark(owner, r)}`;
+function slat(o, x, y, owner, op = 1) {
+  const r = wallRect(o, x, y), sh = o === 'h' ? [0, 2.5] : [2, 2];
+  return `<g opacity="${op}"><rect x="${r.x + sh[0]}" y="${r.y + sh[1]}" width="${r.w}" height="${r.h}" rx="3" class="b-hard"/>` +
+    `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" style="fill:var(--p${owner + 1})" class="b-line"/>${wallMark(owner, r)}</g>`;
 }
 export function wallLayer(g, { fromIndex = 1e9, breakable = false } = {}) {
   let h = '';
@@ -149,54 +133,47 @@ export function wallLayer(g, { fromIndex = 1e9, breakable = false } = {}) {
   return h;
 }
 
-/* Пазы для стен — крестики, как метки приводки. */
+/* Пазы для стен — точки на перекрёстках. */
 export function slotLayer() {
   let h = '';
-  for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) {
-    const X = cx(x) + S + GP / 2, Y = cy(y) + S + GP / 2;
-    h += `M${X - 4} ${Y}h8M${X} ${Y - 4}v8`;
-  }
-  return `<path class="wslots" d="${h}"/>`;
+  for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) h += `<circle cx="${cx(x) + S + GP / 2}" cy="${cy(y) + S + GP / 2}" r="2.6"/>`;
+  return `<g class="wslots">${h}</g>`;
 }
 
 export function hintLayer(g, p, steps) {
   let h = '';
   steps.forEach((d, k) => {
     const [x, y] = k.split(',').map(Number), mx = cx(x) + S / 2, my = cy(y) + S / 2;
-    h += `<g class="hint" data-cell="${k}"><rect class="hit" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="6"/><rect class="hl" x="${cx(x) + 3}" y="${cy(y) + 3}" width="${S - 6}" height="${S - 6}" rx="4"/>` +
-      `<g class="hdot"><circle class="ink-fill" cx="${mx + 1.5}" cy="${my + 1.5}" r="13" style="fill:var(--p${p.i + 1})"/><circle cx="${mx}" cy="${my}" r="13" class="b-out"/>` +
-      `<text x="${mx}" y="${my + .5}" text-anchor="middle" dominant-baseline="central">${d}</text></g></g>`;
+    h += `<g class="hint" data-cell="${k}" style="--c:var(--p${p.i + 1})"><rect class="hit" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>` +
+      `<g class="hdot"><circle cx="${mx}" cy="${my}" r="13"/><text x="${mx}" y="${my + .5}" text-anchor="middle" dominant-baseline="central">${d}</text></g></g>`;
   });
   return h;
 }
 
 export function previewLayer(w, ok, p) {
   const r = wallRect(w.o, w.x, w.y), mx = r.x + r.w / 2, my = r.y + r.h / 2;
-  const body = ok ? `<g opacity=".85">${slat(w.o, w.x, w.y, p.i, .8)}</g>`
+  const body = ok ? slat(w.o, w.x, w.y, p.i, .75)
     : `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" fill="url(#wd-hatch)" stroke="var(--danger)" stroke-width="2"/>`;
-  return body + `<circle cx="${mx}" cy="${my}" r="12" fill="${ok ? 'var(--ink)' : 'var(--danger)'}" stroke="var(--paper)" stroke-width="2.5"/>` +
-    (ok ? `<path d="m${mx - 5} ${my + .5} 3.5 3.5 6.5-7" fill="none" stroke="var(--paper)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
-      : `<path d="M${mx - 4} ${my - 4}l8 8M${mx + 4} ${my - 4}l-8 8" stroke="var(--paper)" stroke-width="2.2" stroke-linecap="round"/>`);
+  return body + `<circle cx="${mx}" cy="${my}" r="12" fill="${ok ? 'var(--ink)' : 'var(--danger)'}" stroke="var(--surface)" stroke-width="2.5"/>` +
+    (ok ? `<path d="m${mx - 5} ${my + .5} 3.5 3.5 6.5-7" fill="none" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
+      : `<path d="M${mx - 4} ${my - 4}l8 8M${mx + 4} ${my - 4}l-8 8" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round"/>`);
 }
 
-/* Фишка: растровая тень, цветной прогон со сдвигом, контур тушью и штрих-блик. */
-function pawnPath(i, cls, dx = 0, dy = 0, extra = '') {
-  const t = `transform="translate(${dx} ${dy})" class="${cls}" ${extra}`;
+/* Фишка: форма игрока, плоский цвет, контур тушью и жёсткая тень, как у кнопок. */
+function pawnPath(i, attrs, dy = 0) {
+  const t = `transform="translate(0 ${dy})" ${attrs}`;
   switch (i % 4) {
     case 0: return `<circle r="17" ${t}/>`;
     case 1: return `<rect x="-16" y="-16" width="32" height="32" rx="6" ${t}/>`;
-    case 2: return `<path d="M0-19 19 15H-19z" stroke-linejoin="round" ${t}/>`;
-    default: return `<path d="M0-21 21 0 0 21-21 0z" stroke-linejoin="round" ${t}/>`;
+    case 2: return `<path d="M0-18.5 19 15.5H-19z" stroke-linejoin="round" ${t}/>`;
+    default: return `<path d="M0-20.5 20.5 0 0 20.5-20.5 0z" stroke-linejoin="round" ${t}/>`;
   }
 }
 export function pawnShape(i) {
-  const shine = ['M-9-4a10 10 0 0 1 6-7', 'M-10-4v-3a3 3 0 0 1 3-3h4', 'M-3-8l-4 7', 'M-7-6l5-5'][i % 4];
-  return `<g class="pawn-dots">${pawnPath(i, 'p-shadow', 3, 5)}</g>` +
-    pawnPath(i, 'ink-fill', OFF, OFF, `style="fill:var(--p${i + 1})"`) + pawnPath(i, 'p-out') +
-    `<path d="${shine}" class="p-shine"/>`;
+  return pawnPath(i, 'class="b-hard b-hard-l"', 3.5) + pawnPath(i, `style="fill:var(--p${i + 1})" class="b-line b-pawn"`);
 }
 export function frozenMark() {
-  return `<circle r="27" fill="url(#wd-hatch)" opacity=".35"/><g transform="translate(19 -20)"><circle r="10" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.75"/><g transform="translate(-6.6 -6.6) scale(.55)" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round">${IC.freeze}</g></g>`;
+  return `<circle r="27" fill="url(#wd-hatch)" opacity=".25"/><g transform="translate(19 -20)"><circle r="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.75"/><g transform="translate(-6.6 -6.6) scale(.55)" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round">${IC.freeze}</g></g>`;
 }
 export function pawnGroup(p, { turn = false, frozen = false, id = '' } = {}) {
   const x = cx(p.x) + S / 2, y = cy(p.y) + S / 2;
