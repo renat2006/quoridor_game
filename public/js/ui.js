@@ -29,6 +29,7 @@ $$('[data-icon]').forEach((el) => {
   el.outerHTML = el.id ? svg.replace('<svg', `<svg id="${el.id}"`) : svg;
 });
 $$('[data-logo]').forEach((el) => { el.outerHTML = A.logo(+el.dataset.logo); });
+A.installDefs();
 
 let toastT; const toastEl = $('#toast');
 function toast(t, err = false) {
@@ -195,7 +196,7 @@ $('#gRoom').onclick = () => { if (!isLocal && view) copy(`${location.origin}/?ro
 /* ---------- поле ---------- */
 const board = $('#board');
 function buildBoard() {
-  board.innerHTML = A.boardDefs + `<g id="base">${A.boardBase(g)}</g><g id="goal"></g><g id="bonuses"></g><g id="slots"></g><g id="walls"></g><g id="overlay"></g><g id="pawns">` +
+  board.innerHTML = `<g id="base">${A.boardBase(g)}</g><g id="goal"></g><g id="bonuses"></g><g id="slots"></g><g id="walls"></g><g id="overlay"></g><g id="pawns">` +
     g.players.map((p) => A.pawnGroup(p, { id: 'pawn' + p.i })).join('') + '</g><g id="fxl"></g>';
   $('#gCode').textContent = isLocal ? 'здесь' : view.code;
   $('#gRoom').disabled = isLocal;

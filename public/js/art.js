@@ -1,8 +1,8 @@
-// Графика WALL DUEL: единый мотив «клетки и стена». Контур тушью, плоский цвет, жёсткая тень.
+// Графика WALL DUEL: интерфейс — «бумага и тушь», поле — деревянная доска.
 // Всё — строки SVG; цвета берутся из CSS-переменных темы.
 import * as E from './engine.js';
 
-export const N = E.N, S = 56, GP = 10, PAD = 14, P = S + GP, VB = 612;
+export const N = E.N, S = 56, GP = 10, PAD = 26, P = S + GP, VB = PAD * 2 + N * S + (N - 1) * GP; // 636
 export const cx = (x) => PAD + x * P;
 export const cy = (y) => PAD + y * P;
 export const pv = (i) => `var(--p${i + 1})`;
@@ -60,60 +60,89 @@ function shapeBody(i, attrs) {
 export function shape(i, size = 24, { ghost = false } = {}) {
   const a = ghost
     ? 'fill="none" stroke="var(--line-2)" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round"'
-    : `fill="${pv(i)}" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"`;
+    : `fill="url(#wd-p${i})" style="stroke:${dark(i)}" stroke-width="1.75" stroke-linejoin="round"`;
   return `<svg class="shape" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${shapeBody(i, a)}</svg>`;
 }
 
-/* Фишка на поле, центр в (0,0): жёсткая тень снизу, заливка цветом, контур тушью, блик-штрих. */
-export function pawnShape(i) {
-  const sh = `transform="translate(-20 -17)"`, body = `transform="translate(-20 -20)"`;
-  const f = `fill="${pv(i)}" stroke="var(--ink)" stroke-width="2.25" stroke-linejoin="round"`;
-  const shadow = `fill="var(--hard)" stroke="var(--hard)" stroke-width="2.25" stroke-linejoin="round"`;
-  const shine = ['<path d="M13 15a8 8 0 0 1 5-4" fill="none" stroke="var(--shine)" stroke-width="2.2" stroke-linecap="round"/>',
-    '<path d="M12 13v-1.5a2 2 0 0 1 2-2h4" fill="none" stroke="var(--shine)" stroke-width="2.2" stroke-linecap="round"/>',
-    '<path d="M17 14l2.5-4.3" fill="none" stroke="var(--shine)" stroke-width="2.2" stroke-linecap="round"/>',
-    '<path d="M13 17l4-4" fill="none" stroke="var(--shine)" stroke-width="2.2" stroke-linecap="round"/>'][i % 4];
-  return `<g ${sh}>${shapeBody(i, shadow)}</g><g ${body}>${shapeBody(i, f)}${shine}</g>`;
-}
+/* ====================== ПОЛЕ: деревянная доска ======================
+   Рама из ореха, плитки клёна с фаской, бороздки для стен, процедурная текстура дерева.
+   Фишки — точёные лакированные жетоны, стены — крашеные планки, бонусы — латунные медальоны. */
+const mix = (i, pct, to) => `color-mix(in srgb,var(--p${i + 1}) ${pct}%,${to})`;
+const light = (i) => mix(i, 55, '#fff'), dark = (i) => mix(i, 55, '#000');
 
 export const wallRect = (o, x, y) => (o === 'h' ? { x: cx(x), y: cy(y) + S, w: 2 * S + GP, h: GP } : { x: cx(x) + S, y: cy(y), w: GP, h: 2 * S + GP });
 
-export const boardDefs = `<defs><pattern id="wd-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink-2)" stroke-width="1.5"/></pattern></defs>`;
+/* Определения градиентов и фильтров вставляются в документ один раз (installDefs):
+   если продублировать их в каждой доске, браузер возьмёт копию из скрытого экрана и не отрисует их. */
+export const boardDefs = (() => {
+  let d = `<defs>
+  <linearGradient id="wd-frame" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6B4428"/><stop offset=".5" stop-color="#4E301B"/><stop offset="1" stop-color="#3A2313"/></linearGradient>
+  <linearGradient id="wd-tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F1DEBC"/><stop offset="1" stop-color="#DEC196"/></linearGradient>
+  <linearGradient id="wd-tile-edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset=".25" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  <radialGradient id="wd-brass" cx=".38" cy=".32" r=".8"><stop offset="0" stop-color="#FFF0BE"/><stop offset=".45" stop-color="#E2B657"/><stop offset="1" stop-color="#9A6E1F"/></radialGradient>
+  <radialGradient id="wd-vignette" cx=".5" cy=".45" r=".75"><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></radialGradient>
+  <filter id="wd-grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".006 .16" numOctaves="3" seed="11"/><feColorMatrix values="0 0 0 0 .32  0 0 0 0 .2  0 0 0 0 .1  0 0 0 1.1 -.42"/></filter>
+  <filter id="wd-pshadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="3.5" stdDeviation="2.6" flood-color="#1A0E05" flood-opacity=".55"/></filter>
+  <filter id="wd-wshadow" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="1.4" flood-color="#1A0E05" flood-opacity=".6"/></filter>
+  <filter id="wd-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+  <pattern id="wd-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#CFE8FF" stroke-width="2"/></pattern>`;
+  for (let i = 0; i < 4; i++) {
+    d += `<radialGradient id="wd-p${i}" cx=".36" cy=".3" r=".8"><stop offset="0" style="stop-color:${light(i)}"/><stop offset=".5" style="stop-color:var(--p${i + 1})"/><stop offset="1" style="stop-color:${dark(i)}"/></radialGradient>` +
+      `<linearGradient id="wd-wh${i}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${light(i)}"/><stop offset=".45" style="stop-color:var(--p${i + 1})"/><stop offset="1" style="stop-color:${dark(i)}"/></linearGradient>` +
+      `<linearGradient id="wd-wv${i}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:${light(i)}"/><stop offset=".45" style="stop-color:var(--p${i + 1})"/><stop offset="1" style="stop-color:${dark(i)}"/></linearGradient>`;
+  }
+  return d + '</defs>';
+})();
 
-/* Постоянный слой: ложе поля, клетки и цветные кромки «домов» игроков. */
+/* Постоянный слой: рама, ложе с бороздками, плитки, текстура и цветные инкрустации «домов». */
 export function boardBase(g) {
-  let h = `<rect x="1" y="1" width="${VB - 2}" height="${VB - 2}" rx="18" fill="var(--board)" stroke="var(--ink)" stroke-width="2"/>`;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) h += `<rect class="cell" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>`;
+  const E2 = VB - PAD + 4, inner = PAD - 6;
+  let h = `<rect width="${VB}" height="${VB}" rx="24" fill="url(#wd-frame)"/>` +
+    `<rect x="2" y="2" width="${VB - 4}" height="${VB - 4}" rx="22" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>` +
+    `<rect x="${inner}" y="${inner}" width="${VB - inner * 2}" height="${VB - inner * 2}" rx="12" fill="#2A170A"/>` +
+    `<rect x="${inner}" y="${inner}" width="${VB - inner * 2}" height="${VB - inner * 2}" rx="12" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="2"/>`;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const X = cx(x), Y = cy(y);
+    h += `<rect x="${X}" y="${Y + 2}" width="${S}" height="${S}" rx="7" fill="#1C0F06" opacity=".7"/>` +
+      `<rect x="${X}" y="${Y}" width="${S}" height="${S}" rx="7" fill="url(#wd-tile)"/>` +
+      `<rect x="${X + .75}" y="${Y + .75}" width="${S - 1.5}" height="${S - 1.5}" rx="6.5" fill="none" stroke="url(#wd-tile-edge)" stroke-width="1.5"/>`;
+  }
+  h += `<rect width="${VB}" height="${VB}" rx="24" filter="url(#wd-grain)" style="mix-blend-mode:multiply" opacity=".55"/>` +
+    `<rect width="${VB}" height="${VB}" rx="24" fill="url(#wd-vignette)"/>`;
   g.players.forEach((p) => {
-    const b = [[60, 600, 492, 6], [6, 60, 6, 492], [60, 6, 492, 6], [600, 60, 6, 492]][p.side];
-    h += `<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="3" fill="${pv(p.i)}" stroke="var(--ink)" stroke-width="1.25"/>`;
+    const len = VB - 120, t = 6, a = 60, b = PAD / 2 - t / 2;
+    const r = [[a, VB - b - t, len, t, 'wd-wh'], [b, a, t, len, 'wd-wv'], [a, b, len, t, 'wd-wh'], [VB - b - t, a, t, len, 'wd-wv']][p.side];
+    h += `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="3" fill="url(#${r[4]}${p.i})" stroke="#1C0F06" stroke-opacity=".6" stroke-width="1"/>`;
   });
   return h;
 }
 
-/* Подсветка цели: только у того, кто ходит, чтобы поле не пестрело. */
+/* Цель того, кто ходит: плитки ряда окрашены его цветом, поверх — стрелки направления. */
 export function goalLayer(g, i) {
   const p = g.players[i]; if (!p) return '';
   let h = '';
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++)
-    if (E.SIDES[p.side].goal(x, y)) h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" fill="${pv(i)}" fill-opacity=".16"/>` +
-      `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${p.side * 90})" opacity=".55"><path d="M-6 3 0-3l6 6" fill="none" stroke="${pv(i)}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    if (E.SIDES[p.side].goal(x, y)) h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" style="fill:var(--p${i + 1})" fill-opacity=".32"/>` +
+      `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${p.side * 90})"><path d="M-7 4 0-3l7 7" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></g>`;
   return h;
 }
 
+/* Бонус — латунный медальон, вделанный в плитку, с гравированной иконкой. */
 export function bonusLayer(g) {
   let h = '';
   for (const [k, t] of Object.entries(g.bonus)) {
-    const [x, y] = k.split(',').map(Number);
-    h += `<g class="bonus"><rect x="${cx(x) + 5}" y="${cy(y) + 5}" width="46" height="46" rx="5" fill="none" stroke="var(--ink-2)" stroke-width="1.25" stroke-dasharray="3.5 3"/>` +
-      `<g transform="translate(${cx(x) + 13} ${cy(y) + 13}) scale(1.25)" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" color="var(--ink)">${IC[BONUS_ICON[t]]}</g></g>`;
+    const [x, y] = k.split(',').map(Number), mx = cx(x) + S / 2, my = cy(y) + S / 2;
+    h += `<g class="bonus"><circle cx="${mx}" cy="${my + 1.5}" r="18.5" fill="#5A3A0E" opacity=".45"/>` +
+      `<circle cx="${mx}" cy="${my}" r="18" fill="url(#wd-brass)" stroke="#7A5516" stroke-width="1.25"/>` +
+      `<circle cx="${mx}" cy="${my}" r="14.5" fill="none" stroke="#7A5516" stroke-opacity=".55" stroke-width="1"/>` +
+      `<g transform="translate(${mx - 9.6} ${my - 9.6}) scale(.8)" fill="none" stroke="#4A320C" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" color="#4A320C">${IC[BONUS_ICON[t]]}</g></g>`;
   }
   return h;
 }
 
-/* Знак хозяина на стене — его форма в миниатюре. */
+/* Знак хозяина на планке — его форма в миниатюре. */
 function wallMark(owner, r) {
-  const mx = r.x + r.w / 2, my = r.y + r.h / 2, f = 'fill="var(--surface)"';
+  const mx = r.x + r.w / 2, my = r.y + r.h / 2, f = 'fill="#fff" fill-opacity=".9"';
   switch (owner % 4) {
     case 0: return `<circle cx="${mx}" cy="${my}" r="2.2" ${f}/>`;
     case 1: return `<rect x="${mx - 2}" y="${my - 2}" width="4" height="4" rx=".6" ${f}/>`;
@@ -121,22 +150,26 @@ function wallMark(owner, r) {
     default: return `<path d="M${mx} ${my - 2.8}l2.8 2.8-2.8 2.8-2.8-2.8z" ${f}/>`;
   }
 }
+function slat(o, x, y, owner, extra = '') {
+  const r = wallRect(o, x, y), gid = (o === 'h' ? 'wd-wh' : 'wd-wv') + owner;
+  const hl = o === 'h' ? `M${r.x + 5} ${r.y + 2}h${r.w - 10}` : `M${r.x + 2} ${r.y + 5}v${r.h - 10}`;
+  return `<g filter="url(#wd-wshadow)" ${extra}><rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3.5" fill="url(#${gid})" stroke="${dark(owner)}" stroke-width="1"/>` +
+    `<path d="${hl}" stroke="#fff" stroke-opacity=".55" stroke-width="1.2" stroke-linecap="round"/>${wallMark(owner, r)}</g>`;
+}
 export function wallLayer(g, { fromIndex = 1e9, breakable = false } = {}) {
   let h = '';
   g.walls.forEach((w, i) => {
-    const r = wallRect(w.o, w.x, w.y), hs = w.o === 'h' ? 'translate(0 2)' : 'translate(2 0)';
-    h += `<g class="wallg${i >= fromIndex ? ' fresh' : ''}${breakable ? ' breakable' : ''}" data-wall="${i}">` +
-      `<rect transform="${hs}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3.5" fill="var(--hard)"/>` +
-      `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3.5" fill="${pv(w.owner)}" stroke="var(--ink)" stroke-width="1.75"/>${wallMark(w.owner, r)}` +
-      (breakable ? `<rect class="brk" x="${r.x - 6}" y="${r.y - 6}" width="${r.w + 12}" height="${r.h + 12}" rx="8" fill="transparent" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 3"/>` : '') + '</g>';
+    const r = wallRect(w.o, w.x, w.y);
+    h += `<g class="wallg${i >= fromIndex ? ' fresh' : ''}${breakable ? ' breakable' : ''}" data-wall="${i}">${slat(w.o, w.x, w.y, w.owner)}` +
+      (breakable ? `<rect class="brk" x="${r.x - 6}" y="${r.y - 6}" width="${r.w + 12}" height="${r.h + 12}" rx="8" fill="transparent" stroke="#FFF4D6" stroke-width="2" stroke-dasharray="5 4"/>` : '') + '</g>';
   });
   return h;
 }
 
-/* Точки-пазы: где вообще может стоять стена (видны в режиме «Стена»). */
+/* Пазы: латунные заклёпки на перекрёстках, куда может встать стена. */
 export function slotLayer() {
   let h = '';
-  for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) h += `<circle cx="${cx(x) + S + GP / 2}" cy="${cy(y) + S + GP / 2}" r="2.6"/>`;
+  for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) h += `<circle cx="${cx(x) + S + GP / 2}" cy="${cy(y) + S + GP / 2}" r="3"/>`;
   return `<g class="wslots">${h}</g>`;
 }
 
@@ -144,33 +177,54 @@ export function hintLayer(g, p, steps) {
   let h = '';
   steps.forEach((d, k) => {
     const [x, y] = k.split(',').map(Number), mx = cx(x) + S / 2, my = cy(y) + S / 2;
-    h += `<g class="hint" data-cell="${k}" style="--c:${pv(p.i)}"><rect class="hit" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>` +
-      `<circle cx="${mx}" cy="${my}" r="15"/><text x="${mx}" y="${my + .5}" text-anchor="middle" dominant-baseline="central">${d}</text></g>`;
+    h += `<g class="hint" data-cell="${k}"><rect class="hit" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>` +
+      `<rect class="hl" x="${cx(x) + 2}" y="${cy(y) + 2}" width="${S - 4}" height="${S - 4}" rx="6" style="stroke:var(--p${p.i + 1})"/>` +
+      `<circle cx="${mx}" cy="${my}" r="13" style="fill:var(--p${p.i + 1})" stroke="#fff" stroke-width="2"/>` +
+      `<text x="${mx}" y="${my + .5}" text-anchor="middle" dominant-baseline="central">${d}</text></g>`;
   });
   return h;
 }
 
 export function previewLayer(w, ok, p) {
-  const r = wallRect(w.o, w.x, w.y), mx = r.x + r.w / 2, my = r.y + r.h / 2, c = ok ? pv(p.i) : 'var(--danger)';
-  return `<rect x="${r.x - 1}" y="${r.y - 1}" width="${r.w + 2}" height="${r.h + 2}" rx="4" fill="${c}" fill-opacity=".45" stroke="${c}" stroke-width="2" stroke-dasharray="5 3"/>` +
-    `<circle cx="${mx}" cy="${my}" r="12" fill="${ok ? 'var(--ink)' : 'var(--danger)'}" stroke="var(--surface)" stroke-width="2"/>` +
-    (ok ? `<path d="m${mx - 5} ${my + .5} 3.5 3.5 6.5-7" fill="none" stroke="var(--surface)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
-      : `<path d="M${mx - 4} ${my - 4}l8 8M${mx + 4} ${my - 4}l-8 8" stroke="var(--surface)" stroke-width="2" stroke-linecap="round"/>`);
+  const r = wallRect(w.o, w.x, w.y), mx = r.x + r.w / 2, my = r.y + r.h / 2;
+  const body = ok ? `<g opacity=".8">${slat(w.o, w.x, w.y, p.i)}</g>`
+    : `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3.5" fill="#C0392B" fill-opacity=".55" stroke="#fff" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  return body + `<circle cx="${mx}" cy="${my}" r="12" fill="${ok ? '#1F6B3A' : '#B3261E'}" stroke="#fff" stroke-width="2"/>` +
+    (ok ? `<path d="m${mx - 5} ${my + .5} 3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`
+      : `<path d="M${mx - 4} ${my - 4}l8 8M${mx + 4} ${my - 4}l-8 8" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>`);
 }
 
-/* Узор «заморожен»: штриховка под фишкой и значок-снежинка. */
+/* Фишка: форма игрока, лакированная заливка, ободок, выточенная канавка и блик. */
+function pawnPath(i, k) {
+  switch (i % 4) {
+    case 0: return `<circle r="${18 * k}" ATTR/>`;
+    case 1: { const s = 33 * k; return `<rect x="${-s / 2}" y="${-s / 2}" width="${s}" height="${s}" rx="${8 * k}" ATTR/>`; }
+    case 2: { const a = 21 * k; return `<path d="M0 ${-a} L${a * 1.02} ${a * .78} Q${a * 1.08} ${a * .95} ${a * .88} ${a * .98} H${-a * .88} Q${-a * 1.08} ${a * .95} ${-a * 1.02} ${a * .78} Z" ATTR/>`; }
+    default: { const a = 21 * k; return `<path d="M0 ${-a} L${a} 0 L0 ${a} L${-a} 0 Z" stroke-linejoin="round" ATTR/>`; }
+  }
+}
+export function pawnShape(i) {
+  const at = (s) => (str) => str.replace('ATTR', s);
+  const dy = i % 4 === 2 ? 2 : 0;
+  return `<g transform="translate(0 ${dy})" filter="url(#wd-pshadow)">` +
+    at(`fill="url(#wd-p${i})" style="stroke:${dark(i)}" stroke-width="1.5"`)(pawnPath(i, 1)) +
+    at(`fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.5"`)(pawnPath(i, .58)) +
+    `<ellipse cx="-6" cy="-8" rx="6.5" ry="3.2" fill="#fff" opacity=".55" transform="rotate(-32 -6 -8)"/></g>`;
+}
+
 export function frozenMark() {
-  return `<circle r="27" fill="url(#wd-hatch)" opacity=".5"/><g transform="translate(20 -21)"><circle r="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="1.5"/><g transform="translate(-7 -7) scale(.58)" fill="none" stroke="var(--ink)" stroke-width="2.4" stroke-linecap="round">${IC.freeze}</g></g>`;
+  return `<circle r="26" fill="url(#wd-hatch)" opacity=".55"/><circle r="26" fill="#BFE0FF" fill-opacity=".25" stroke="#CFE8FF" stroke-width="2"/>` +
+    `<g transform="translate(19 -20)"><circle r="10" fill="#2F6FB5" stroke="#fff" stroke-width="2"/><g transform="translate(-6.6 -6.6) scale(.55)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round">${IC.freeze}</g></g>`;
 }
 export function pawnGroup(p, { turn = false, frozen = false, id = '' } = {}) {
   const x = cx(p.x) + S / 2, y = cy(p.y) + S / 2;
   return `<g class="pawn${turn ? ' turn' : ''}${frozen ? ' frozen' : ''}" ${id ? `id="${id}"` : ''} style="transform:translate(${x}px,${y}px)">` +
-    `<g class="pawn-fx"><circle class="ring" r="26" fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="5 4"/><g class="fz">${frozen ? frozenMark() : ''}</g><g class="pawn-body">${pawnShape(p.i)}</g></g></g>`;
+    `<g class="pawn-fx"><circle class="ring-glow" r="27" style="stroke:var(--p${p.i + 1})"/><circle class="ring" r="27"/><g class="fz">${frozen ? frozenMark() : ''}</g><g class="pawn-body">${pawnShape(p.i)}</g></g></g>`;
 }
 
 /* Полностью статичное поле (обложка на главной, подложка победы). */
 export function staticBoard(g, goalOf = -1) {
-  return boardDefs + boardBase(g) + (goalOf >= 0 ? goalLayer(g, goalOf) : '') + bonusLayer(g) + wallLayer(g) + g.players.map((p) => pawnGroup(p, { frozen: p.skip > 0 })).join('');
+  return boardBase(g) + (goalOf >= 0 ? goalLayer(g, goalOf) : '') + bonusLayer(g) + wallLayer(g) + g.players.map((p) => pawnGroup(p, { frozen: p.skip > 0 })).join('');
 }
 
 export function demoGame() {
@@ -183,4 +237,9 @@ export function demoGame() {
   ];
   g.bonus = { '6,1': 'wall', '1,5': 'again', '6,6': 'freeze' };
   return g;
+}
+
+export function installDefs() {
+  if (document.getElementById('wd-defs')) return;
+  document.body.insertAdjacentHTML('afterbegin', `<svg id="wd-defs" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">${boardDefs}</svg>`);
 }
