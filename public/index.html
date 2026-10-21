@@ -156,6 +156,7 @@
   <main class="gwrap">
     <section class="stage" aria-label="Поле">
       <ol class="chips" id="chips" aria-label="Игроки"></ol>
+      <div class="mstatus" id="mstatus" aria-live="polite"></div>
       <div class="board"><svg id="board" viewBox="0 0 636 636" role="img" aria-label="Игровое поле 9 на 9"></svg></div>
       <div class="confirm hidden" id="confirm" role="group" aria-label="Поставить стену">
         <span>Стена здесь?</span>
@@ -173,7 +174,7 @@
             <div class="tc-who" id="tcWho"></div>
             <div class="tc-status" id="tcStatus"></div>
           </div>
-          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span>Бросить</span></button>
+          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span>Бросить кубик</span></button>
         </div>
         <div class="acts" id="acts" role="group" aria-label="Действие">
           <button data-m="move" aria-pressed="false"><i data-icon="move" data-size="24"></i><b>Идти</b><small id="aMove"></small></button>

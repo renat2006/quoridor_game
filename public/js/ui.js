@@ -314,8 +314,8 @@ function renderGame() {
   }).join('');
   $('#chips').innerHTML = g.players.map((q) => {
     const f = playerInfo(q);
-    return `<li class="chip${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}"><div class="top">${A.shape(q.i, 16)}<span>${esc(q.name)}</span></div>
-      <div class="bar-t"><b style="width:${f.pr}%"></b></div><div class="meta"><span title="Клеток до цели">${A.goalArrow(q.side, 11)}${f.d}</span><span title="Стен в запасе">${A.icon('wall', 11)}${q.walls}</span></div></li>`;
+    return `<li class="chip${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}"><div class="top">${A.shape(q.i, 16)}<span>${esc(q.name)}</span><b>${f.d}</b></div>
+      <div class="bar-t"><b style="width:${f.pr}%"></b></div></li>`;
   }).join('');
 
   const key = `${g.id}:${g.turns}:${g.turn}:${g.phase}:${g.roll}`;
@@ -337,6 +337,7 @@ function renderGame() {
   else st = `Выпало <b>${g.roll}</b> · ход до <b>${E.maxSteps(g.roll)}</b> ${plural(E.maxSteps(g.roll), 'клетки', 'клеток', 'клеток')}`;
   $('#tcStatus').innerHTML = st;
   $('#rollBtn').classList.toggle('hidden', !canRoll);
+  $('.dock').classList.toggle('can-roll', canRoll);
   $('#dieBtn').disabled = !canRoll;
   $('#dieBtn').setAttribute('aria-label', canRoll ? 'Бросить кубик' : g.roll ? `Кубик: ${g.roll}` : 'Кубик');
 
@@ -358,6 +359,8 @@ function renderGame() {
   else if (mode === 'wall') { hint = coarse ? 'Коснитесь линии между клетками, затем «Поставить».' : 'Наведите на точку между клетками и кликните. <kbd>R</kbd> или правый клик — повернуть.'; ic = 'wall'; }
   else { hint = 'Выберите стену, которую хотите сломать.'; ic = 'break'; }
   $('#hint').innerHTML = `${A.icon(ic, 18)}<span>${hint}</span>`;
+  const mtxt = myTurn && g.phase === 'act' && mode === 'wall' && !preview ? 'Коснитесь линии между клетками' : myTurn && g.phase === 'act' && mode === 'break' ? 'Коснитесь стены, чтобы сломать' : st;
+  $('#mstatus').innerHTML = `${A.shape(p.i, 16)}<b>${esc(p.name)}</b><span>· ${mtxt}</span>`;
 
   $('#log').innerHTML = g.log.slice(0, 10).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
   $('#emotes').classList.toggle('hidden', isLocal);
