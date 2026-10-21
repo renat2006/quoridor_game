@@ -298,7 +298,7 @@ function exitGame(force) {
 const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn;
 const progress = (q) => Math.max(0, Math.min(1, 1 - E.dist(g, q) / (g.size - 1)));
 const cardLimit = (q) => (q.role === 'gambler' ? E.RULES.gamblerCards : 1);
-const ACTIVE_ROLE = { sapper: { name: 'Сломать', act: 'break' }, architect: { name: 'Повернуть', act: 'rotate' } };
+const ACTIVE_ROLE = { sapper: { name: 'Сломать', act: 'break' }, architect: { name: 'Поворот', act: 'rotate' } };
 /* Готова ли способность роли (перезарядки хранятся в счётчиках игрока). */
 function roleState(q) {
   const ready = { runner: !(q.runCd > 0), mason: !(q.masonCd > 0), ghost: !(q.ghostCd > 0), sapper: !(q.sapCd > 0), gambler: true, architect: true }[q.role];
@@ -357,7 +357,7 @@ function renderGame() {
   const activeRole = ACTIVE_ROLE[p.role];
   $('#roleBtn').classList.toggle('hidden', !activeRole);
   $('#acts').classList.toggle('no-role', !activeRole);
-  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 20); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; }
+  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 20); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; $('#roleBtn').title = `${activeRole.name}: ${$('#aRole').textContent}`; }
   $('#aMove').textContent = `до ${E.stepBudget(g)}`;
   $('#aWall').textContent = `${p.walls} шт.`;
   $$('#acts button').forEach((b) => {

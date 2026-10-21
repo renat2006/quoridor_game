@@ -216,11 +216,13 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 .end{flex:none;height:36px;padding:0 14px;font-size:14px}
 .tc-status{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--ink-2)}
 .tc-status b{font-family:var(--mono)}
-.acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.acts.no-role{grid-template-columns:repeat(2,1fr)}
-.acts button{height:48px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border-radius:var(--r-sm);border:var(--bw) solid var(--ink);background:var(--surface);box-shadow:0 2px 0 var(--hard);font-size:14px;transition:transform .08s,box-shadow .08s,background .12s}
-.acts b{font-weight:600}
-.acts small{font-size:11px;font-weight:500;color:var(--muted);font-family:var(--mono)}
+.acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.acts.no-role{grid-template-columns:repeat(2,minmax(0,1fr))}
+.acts button{min-width:0;overflow:hidden;height:48px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border-radius:var(--r-sm);border:var(--bw) solid var(--ink);background:var(--surface);box-shadow:0 2px 0 var(--hard);font-size:14px;transition:transform .08s,box-shadow .08s,background .12s}
+.acts b{min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acts small{font-size:11px;font-weight:500;color:var(--muted);font-family:var(--mono);white-space:nowrap}
+/* с кнопкой роли места на подписи нет: подробности — в подсказке и строке статуса */
+.acts:not(.no-role) small{display:none}
 .acts button:hover:not(:disabled){background:var(--sunk)}
 .acts button[aria-pressed=true]{background:var(--ink);color:var(--on-ink);transform:translateY(2px);box-shadow:0 0 0 var(--hard)}
 .acts button[aria-pressed=true] small{color:var(--on-ink);opacity:.7}
@@ -311,6 +313,7 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 @media (max-width:1080px){
   .gwrap{grid-template-columns:minmax(0,1fr) 300px;gap:24px;padding:20px}
   .acts small{display:none}
+  .acts button{flex-direction:column;gap:2px;padding:0 4px;font-size:13px;line-height:1.1}
   .hero{gap:48px}
 }
 @media (max-width:900px){
