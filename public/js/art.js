@@ -10,12 +10,12 @@ export const pv = (i) => `var(--p${i + 1})`;
 /* Иконки: сетка 24, линия 1.75, скруглённые концы. Игровые иконки собраны из того же мотива,
    что и логотип: клетка (скруглённый квадрат) и стена (толстая черта). */
 const IC = {
-  move: '<rect x="2.5" y="8.5" width="7" height="7" rx="1.75" fill="currentColor"/><rect x="14.5" y="8.5" width="7" height="7" rx="1.75"/><path d="M10.5 12h2.5M11.5 10l2 2-2 2"/>',
-  wall: '<rect x="2.5" y="6.5" width="7" height="11" rx="1.75"/><rect x="14.5" y="6.5" width="7" height="11" rx="1.75"/><rect x="11" y="3" width="2" height="18" rx="1" fill="currentColor" stroke="none"/>',
-  break: '<rect x="2.5" y="6.5" width="7" height="11" rx="1.75"/><rect x="14.5" y="6.5" width="7" height="11" rx="1.75"/><rect x="11" y="2.5" width="2" height="6.5" rx="1" fill="currentColor" stroke="none"/><rect x="11" y="15" width="2" height="6.5" rx="1" fill="currentColor" stroke="none"/><path d="M10 12h.01M14 12h.01"/>',
+  move: '<circle cx="7" cy="6.25" r="2.5"/><path d="M3.75 19.5h6.5M4.75 19.5c0-3.2.85-6.4 2.25-8.75 1.4 2.35 2.25 5.55 2.25 8.75"/><path d="M13.5 12.5h7M17.5 9.5l3 3-3 3"/>',
+  wall: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9.5h18M3 14.5h18M12 4.5v5M7.5 9.5v5M16.5 9.5v5M12 14.5v5"/>',
+  break: '<path d="M13.4 3.6l7 7-2.8 2.8-7-7z"/><path d="M12.9 8.9 4.3 17.5a1.7 1.7 0 0 0 2.4 2.4l8.6-8.6"/>',
   dice: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="9" cy="9" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
-  plusWall: '<rect x="3.5" y="5" width="2.75" height="14" rx="1.4" fill="currentColor" stroke="none"/><rect x="8.75" y="5" width="2.75" height="14" rx="1.4" fill="currentColor" stroke="none"/><path d="M17.5 8.5v7M14 12h7"/>',
-  again: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19.5 4.5V8H16"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  plusWall: '<rect x="2.5" y="8" width="12.5" height="11.5" rx="1.75"/><path d="M2.5 11.85h12.5M2.5 15.65h12.5M8.75 8v3.85M5.75 11.85v3.8M11.75 11.85v3.8M8.75 15.65v3.85"/><path d="M19 3.5v6M16 6.5h6"/>',
+  again: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.75 3.75V7.5H16"/><rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1.25"/>',
   freeze: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.8 4.8 12 6.8l2.2-2M9.8 19.2 12 17.2l2.2 2"/>',
   flag: '<path d="M5.5 21V4M5.5 4.5h11l-2.5 4 2.5 4h-11"/>',
   people: '<circle cx="8.5" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19.5c.4-3 2.7-5 5.5-5s5.1 2 5.5 5M14.5 14.6c3 .1 5.6 1.8 6 4.9"/>',
