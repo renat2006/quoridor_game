@@ -17,6 +17,9 @@ const IC = {
   dice: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="9" cy="9" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
   plusWall: '<rect x="2.5" y="8" width="12.5" height="11.5" rx="1.75"/><path d="M2.5 11.85h12.5M2.5 15.65h12.5M8.75 8v3.85M5.75 11.85v3.8M11.75 11.85v3.8M8.75 15.65v3.85"/><path d="M19 3.5v6M16 6.5h6"/>',
   again: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.75 3.75V7.5H16"/><rect x="9.25" y="9.25" width="5.5" height="5.5" rx="1.25"/>',
+  dash: '<path d="M4.5 6.5 10 12l-5.5 5.5M12.5 6.5 18 12l-5.5 5.5"/>',
+  phase: '<path d="M13 3v3.5M13 10.5v3M13 17.5V21"/><path d="M3 12h15.5M15.5 8.5 19 12l-3.5 3.5"/>',
+  cards: '<rect x="3.5" y="7" width="11" height="14" rx="2"/><path d="M8 4h9.5A2 2 0 0 1 19.5 6v12"/>',
   freeze: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.8 4.8 12 6.8l2.2-2M9.8 19.2 12 17.2l2.2 2"/>',
   flag: '<path d="M5.5 21V4M5.5 4.5h11l-2.5 4 2.5 4h-11"/>',
   people: '<circle cx="8.5" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.5"/><path d="M3 19.5c.4-3 2.7-5 5.5-5s5.1 2 5.5 5M14.5 14.6c3 .1 5.6 1.8 6 4.9"/>',
@@ -41,7 +44,9 @@ const IC = {
   chat: '<path d="M5 18.5V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H8z"/><path d="M9 9.5h6M9 12.5h4"/>',
 };
 export const icon = (n, size = 20, extra = '') => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${IC[n]}</svg>`;
-export const BONUS_ICON = { wall: 'plusWall', again: 'again', freeze: 'freeze' };
+export const BONUS_ICON = { wall: 'plusWall', card: 'cards', energy: 'dash' };
+export const CARD_ICON = { dash: 'dash', demolish: 'break', phase: 'phase', masonry: 'plusWall', turn: 'rotate', freeze: 'freeze' };
+export const ROLE_ICON = { runner: 'move', mason: 'wall', ghost: 'phase', sapper: 'break', gambler: 'cards', architect: 'rotate' };
 /* Стрелка в сторону цели: сторона 0 идёт вверх, 1 вправо, 2 вниз, 3 влево. */
 export const goalArrow = (side, size = 14) => icon('arrow', size, `style="transform:rotate(${side * 90}deg)"`);
 
@@ -145,7 +150,8 @@ export function slotLayer(n) {
 
 export function hintLayer(g, p, steps) {
   let h = '';
-  steps.forEach((d, k) => {
+  steps.forEach((r, k) => {
+    const d = typeof r === 'object' ? r.d : r;
     const [x, y] = k.split(',').map(Number), mx = cx(x) + S / 2, my = cy(y) + S / 2;
     h += `<g class="hint" data-cell="${k}" style="--c:var(--p${p.i + 1})"><rect class="hit" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>` +
       `<g class="hdot"><circle cx="${mx}" cy="${my}" r="13"/><text x="${mx}" y="${my + .5}" text-anchor="middle" dominant-baseline="central">${d}</text></g></g>`;
@@ -186,7 +192,7 @@ export function pawnGroup(p, { turn = false, frozen = false, id = '' } = {}) {
 
 /* Полностью статичное поле (обложка на главной, подложка победы). */
 export function staticBoard(g, goalOf = -1) {
-  return boardBase(g) + (goalOf >= 0 ? goalLayer(g, goalOf) : '') + bonusLayer(g) + wallLayer(g) + g.players.map((p) => pawnGroup(p, { frozen: p.skip > 0 })).join('');
+  return boardBase(g) + (goalOf >= 0 ? goalLayer(g, goalOf) : '') + bonusLayer(g) + wallLayer(g) + g.players.map((p) => pawnGroup(p, { frozen: p.frozen > 0 })).join('');
 }
 
 export function demoGame() {
@@ -197,6 +203,6 @@ export function demoGame() {
     { o: 'h', x: 3, y: 4, owner: 1 }, { o: 'v', x: 4, y: 5, owner: 2 }, { o: 'h', x: 4, y: 1, owner: 0 }, { o: 'v', x: 1, y: 1, owner: 3 },
     { o: 'h', x: 0, y: 6, owner: 3 }, { o: 'v', x: 6, y: 2, owner: 0 }, { o: 'h', x: 5, y: 5, owner: 2 }, { o: 'v', x: 2, y: 0, owner: 1 },
   ];
-  g.bonus = { '6,1': 'wall', '1,5': 'again', '6,6': 'freeze' };
+  g.bonus = { '6,1': 'wall', '1,5': 'card', '6,6': 'energy' };
   return g;
 }

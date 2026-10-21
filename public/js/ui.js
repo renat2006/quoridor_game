@@ -10,8 +10,8 @@ const { cx, cy, S, GP, PAD, P } = A;
 
 let net = null, view = null, g = null, gameId = null, seen = 0;
 let mode = 'move', preview = null, turnKey = '', prevWalls = 0, pending = false, lastPtr = 'mouse';
-let isLocal = false, wasOnline = false, listTimer = 0, rollTimer = 0, rolling = false;
-const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, botLevel: 'normal', size: 9 };
+let isLocal = false, wasOnline = false, listTimer = 0, pendingCard = null;
+const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, roles: true, botLevel: 'normal', size: 9 };
 const setSeg = (el, val) => el.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.l === val));
 
 /* ---------- тема, иконки, мелочи ---------- */
@@ -151,16 +151,17 @@ function renderLocal() {
     r.querySelector('.sw').onclick = (e) => { localCfg.bot[i] = !localCfg.bot[i]; setSwitch(e.currentTarget, localCfg.bot[i]); };
     box.appendChild(r);
   }
-  setSwitch($('#localBonus'), localCfg.bonus);
+  setSwitch($('#localBonus'), localCfg.bonus); setSwitch($('#localRoles'), localCfg.roles);
   setSeg($('#localLevel'), localCfg.botLevel);
   setSeg($('#localSize'), String(localCfg.size));
 }
 $('#localBonus').onclick = (e) => { localCfg.bonus = !localCfg.bonus; setSwitch(e.currentTarget, localCfg.bonus); };
+$('#localRoles').onclick = (e) => { localCfg.roles = !localCfg.roles; setSwitch(e.currentTarget, localCfg.roles); };
 $('#localLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.botLevel = b.dataset.l; setSeg($('#localLevel'), b.dataset.l); } };
 $('#localSize').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.size = +b.dataset.l; setSeg($('#localSize'), b.dataset.l); } };
 $('#bLocalGo').onclick = () => {
   const seats = Array.from({ length: localCfg.n }, (_, i) => ({ name: localCfg.names[i].trim() || 'Игрок ' + (i + 1), bot: localCfg.bot[i] }));
-  useLocal().setup(seats, { bonus: localCfg.bonus, botLevel: localCfg.botLevel, size: localCfg.size });
+  useLocal().setup(seats, { bonus: localCfg.bonus, roles: localCfg.roles, botLevel: localCfg.botLevel, size: localCfg.size });
 };
 
 /* ---------- лобби ---------- */
@@ -179,13 +180,14 @@ function renderLobby() {
   }).join('');
   $$('[data-kick]').forEach((b) => (b.onclick = () => net.send({ t: 'kick', i: +b.dataset.kick })));
   $$('[data-addbot]').forEach((b) => (b.onclick = () => net.send({ t: 'addBot' })));
-  const bonus = $('#optBonus'), pub = $('#optPublic');
-  setSwitch(bonus, v.opts.bonus); setSwitch(pub, v.isPublic);
-  bonus.disabled = pub.disabled = !host;
+  const bonus = $('#optBonus'), pub = $('#optPublic'), roles = $('#optRoles');
+  setSwitch(bonus, v.opts.bonus); setSwitch(pub, v.isPublic); setSwitch(roles, v.opts.roles !== false);
+  bonus.disabled = pub.disabled = roles.disabled = !host;
+  $('#optRolesTxt').textContent = host ? '' : (v.opts.roles !== false ? 'Включены' : 'Выключены');
   $('#optBonusTxt').textContent = host ? '' : (v.opts.bonus ? 'Включены' : 'Выключены');
   $('#optPublicTxt').textContent = host ? '' : (v.isPublic ? 'Видна' : 'Только по коду');
   setSeg($('#optLevel'), v.opts.botLevel || 'normal'); $('#optLevel').classList.toggle('hidden', !host);
-  $('#optLevelTxt').textContent = host ? '' : { easy: 'Лёгкие', normal: 'Сильные', hard: 'Мастер' }[v.opts.botLevel || 'normal'];
+  $('#optLevelTxt').textContent = host ? '' : { easy: 'Лёгкие', normal: 'Сильные' }[v.opts.botLevel] || 'Сильные';
   setSeg($('#optSize'), String(v.opts.size || 9)); $('#optSize').classList.toggle('hidden', !host);
   $('#optSizeTxt').textContent = host ? '' : `${v.opts.size || 9}×${v.opts.size || 9}`;
   $('#lbStart').classList.toggle('hidden', !host); $('#lbWait').classList.toggle('hidden', host);
@@ -194,6 +196,7 @@ function renderLobby() {
 }
 $('#optBonus').onclick = (e) => net.send({ t: 'opts', bonus: !e.currentTarget.classList.contains('on') });
 $('#optPublic').onclick = (e) => net.send({ t: 'opts', isPublic: !e.currentTarget.classList.contains('on') });
+$('#optRoles').onclick = (e) => net.send({ t: 'opts', roles: !e.currentTarget.classList.contains('on') });
 $('#optLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) net.send({ t: 'opts', botLevel: b.dataset.l }); };
 $('#optSize').onclick = (e) => { const b = e.target.closest('button'); if (b) net.send({ t: 'opts', size: +b.dataset.l }); };
 $('#lbStart').onclick = () => net.send({ t: 'start' });
@@ -211,17 +214,16 @@ function buildBoard() {
   $('#gCode').textContent = isLocal ? 'здесь' : view.code;
   $('#gRoom').disabled = isLocal;
   $('#chips').style.setProperty('--n', g.n);
-  buildDie();
 }
 function drawDynamic() {
   const my = canAct(), p = E.cur(g);
   $('#goal').innerHTML = g.over ? '' : A.goalLayer(g, g.turn);
   $('#bonuses').innerHTML = A.bonusLayer(g);
   $('#slots').innerHTML = my && mode === 'wall' ? A.slotLayer(g.size) : '';
-  $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: my && mode === 'break' });
+  $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: my && (mode === 'role' || mode === 'target') });
   prevWalls = g.walls.length;
   let o = '';
-  if (my && mode === 'move') o = A.hintLayer(g, p, E.reach(g, p, E.maxSteps(g.roll)));
+  if (my && mode === 'move') o = A.hintLayer(g, p, E.reach(g, p));
   else if (my && mode === 'wall' && preview) o = A.previewLayer(preview, E.wallLegal(g, preview.o, preview.x, preview.y).ok, p);
   $('#overlay').innerHTML = o;
   g.players.forEach((q) => {
@@ -229,62 +231,31 @@ function drawDynamic() {
     el.style.transform = `translate(${cx(q.x) + S / 2}px,${cy(q.y) + S / 2}px)`;
     el.classList.toggle('turn', q.i === g.turn && !g.over);
     const fz = el.querySelector('.fz'), had = el.classList.contains('frozen');
-    if ((q.skip > 0) !== had) { el.classList.toggle('frozen', q.skip > 0); fz.innerHTML = q.skip > 0 ? A.frozenMark() : ''; }
+    if ((q.frozen > 0) !== had) { el.classList.toggle('frozen', q.frozen > 0); fz.innerHTML = q.frozen > 0 ? A.frozenMark() : ''; }
   });
-}
-
-/* ---------- кубики ----------
-   Два кубика: левый передан предыдущим игроком, правый бросается заново. Ходят выбранным,
-   второй уходит следующему игроку. */
-const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-const dieBtns = $$('#dice .die-btn');
-function buildDie() { dieBtns.forEach((b) => (b.querySelector('.die').innerHTML = '<i></i>'.repeat(9))); }
-function paintDie(d, v) {
-  const el = dieBtns[d].querySelector('.die');
-  el.querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', !!v && PIPS[v].includes(i)));
-  el.classList.toggle('idle', !v);
-}
-const nextName = () => g.players[(g.turn + 1) % g.n].name;
-function renderDice(myTurn) {
-  const vals = g.dice || [g.pass, null], from = g.dice ? g.diceFrom : g.pass != null ? g.passFrom : -1;
-  if (!rolling) { paintDie(0, vals[0]); paintDie(1, vals[1]); }
-  const canPick = myTurn && g.phase === 'act' && !pending && g.dice && g.dice[0] !== g.dice[1];
-  dieBtns.forEach((b, d) => {
-    const sel = !!g.dice && d === g.sel;
-    b.classList.toggle('sel', sel); b.classList.toggle('dim', !!g.dice && !sel);
-    b.setAttribute('aria-checked', sel); b.disabled = !canPick;
-    b.querySelector('.dlab').textContent = d === 0 ? (from >= 0 ? 'от ' + g.players[from].name : 'свой') : 'бросок';
-    b.setAttribute('aria-label', `${d === 0 ? 'Кубик от предыдущего игрока' : 'Новый кубик'}${vals[d] ? ': ' + vals[d] : ''}`);
-  });
-}
-dieBtns.forEach((b, d) => (b.onclick = () => { if (g && g.dice && view.you === g.turn && g.phase === 'act' && !pending && d !== g.sel) { preview = null; send({ t: 'select', d }); } }));
-function rollAnim(dice) {
-  clearInterval(rollTimer); rolling = true; let n = 0;
-  paintDie(0, dice[0]);
-  dieBtns[1].querySelector('.die').animate([{ transform: 'rotate(-5deg)' }, { transform: 'rotate(-200deg) translateY(-12px) scale(1.05)', offset: .4 }, { transform: 'rotate(370deg) translateY(-4px)', offset: .75 }, { transform: 'rotate(-8deg) translateY(1px)', offset: .9 }, { transform: 'rotate(-5deg)' }], { duration: 900, easing: 'cubic-bezier(.2,.8,.2,1)' });
-  rollTimer = setInterval(() => {
-    paintDie(1, 1 + Math.floor(Math.random() * 6)); sfx.play('tick');
-    if (++n >= 7) { clearInterval(rollTimer); rolling = false; if (g) renderGame(); }
-  }, 95);
 }
 
 /* ---------- эффекты событий ---------- */
 function playFx(e) {
-  const pl = g.players[e.p];
+  const pl = g.players[e.p], ghost = (o, x, y, i) => {
+    const r = A.wallRect(o, x, y);
+    $('#fxl').insertAdjacentHTML('beforeend', `<rect class="ghost" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" fill="${A.pv(i)}" stroke="var(--ink)" stroke-width="1.75"/>`);
+    setTimeout(() => $('#fxl .ghost')?.remove(), 400);
+  };
   switch (e.type) {
-    case 'roll': rollAnim(e.dice); setTimeout(() => sfx.play('roll'), 700); break;
-    case 'move': {
+    case 'move':
       $('#pawn' + e.p)?.querySelector('.pawn-body')?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-12px)', offset: .45 }, { transform: 'translateY(1px) scale(1.04,.96)', offset: .85 }, { transform: 'translateY(0)' }], { duration: 160 + 120 * Math.min(3, e.steps), easing: 'cubic-bezier(.2,.8,.2,1)' });
       sfx.play('move'); break;
-    }
     case 'wall': sfx.play('wall'); board.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(1.5px)' }, { transform: 'translateY(0)' }], { duration: 160 }); break;
-    case 'break': {
-      const r = A.wallRect(e.o, e.x, e.y);
-      $('#fxl').insertAdjacentHTML('beforeend', `<rect class="ghost" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3.5" fill="${A.pv(e.p)}" stroke="var(--ink)" stroke-width="1.75"/>`);
-      setTimeout(() => $('#fxl .ghost')?.remove(), 400); sfx.play('break'); break;
-    }
-    case 'bonus': sfx.play(e.type === 'freeze' ? 'freeze' : 'bonus'); toast(`${pl.name}: ${E.BONUS[e.type]}`); break;
-    case 'skip': toast(e.why === 'freeze' ? `${pl.name} заморожен и пропускает ход` : `${pl.name}: ходов нет, пропуск`); break;
+    case 'break': ghost(e.o, e.x, e.y, e.p); sfx.play('break'); break;
+    case 'rotate': sfx.play('wall'); break;
+    case 'card':
+      sfx.play(e.card === 'freeze' ? 'freeze' : 'bonus');
+      if (e.card === 'demolish') ghost(e.o, e.x, e.y, e.p);
+      if (e.p !== view.you || isLocal) toast(`${pl.name} играет «${E.CARDS[e.card].name}»`);
+      break;
+    case 'bonus': sfx.play('bonus'); toast(`${pl.name}: ${E.BONUS[e.type]}`); break;
+    case 'frozen': sfx.play('freeze'); toast(`${pl.name} заморожен: в этот ход 1 ОД`); break;
     case 'win': sfx.play('win'); fillGoal(e.p); setTimeout(() => showWin(e.p), 1300); break;
   }
 }
@@ -322,14 +293,23 @@ function exitGame(force) {
 }
 
 /* ---------- панель партии ---------- */
-const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn && g.phase === 'act';
+const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn;
 const progress = (q) => Math.max(0, Math.min(1, 1 - E.dist(g, q) / (g.size - 1)));
+const cardLimit = (q) => (q.role === 'gambler' ? E.RULES.gamblerCards : 1);
+const ACTIVE_ROLE = { sapper: { name: 'Сломать', act: 'break' }, architect: { name: 'Повернуть', act: 'rotate' } };
+/* Готова ли способность роли (перезарядки хранятся в счётчиках игрока). */
+function roleState(q) {
+  const ready = { runner: !(q.runCd > 0), mason: !(q.masonCd > 0), ghost: !(q.ghostCd > 0), sapper: !(q.sapCd > 0), gambler: true, architect: true }[q.role];
+  const left = { runner: q.runCd, mason: q.masonCd, ghost: q.ghostCd, sapper: q.sapCd }[q.role] || 0;
+  return { ready, text: ready ? 'готова' : `через ${left} ${plural(left, 'ход', 'хода', 'ходов')}` };
+}
 function playerInfo(q) {
   const off = !isLocal && view.seats[q.i] && !view.seats[q.i].connected && !q.bot;
   const me = q.i === view.you && !isLocal;
-  const flag = q.skip > 0 ? A.icon('freeze', 14) : q.bot ? A.icon('bot', 14) : off ? A.icon('offline', 14) : '';
+  const flag = q.frozen > 0 ? A.icon('freeze', 14) : q.bot ? A.icon('bot', 14) : off ? A.icon('offline', 14) : '';
   return { off, me, flag, cur: q.i === g.turn && !g.over, d: E.dist(g, q), pr: Math.round(progress(q) * 100) };
 }
+const roleTag = (q) => (q.role ? `<span class="role" title="${esc(E.ROLES[q.role].text)}">${A.icon(A.ROLE_ICON[q.role], 13)}${E.ROLES[q.role].name}</span>` : '');
 function renderGame() {
   const p = E.cur(g), myTurn = !g.over && view.you === g.turn;
   $('#gTurn').textContent = g.turns + 1;
@@ -338,54 +318,72 @@ function renderGame() {
     const f = playerInfo(q);
     return `<li class="prow${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}">${A.shape(q.i, 28)}
       <div class="nm"><span>${esc(q.name)}</span>${f.me ? '<i>вы</i>' : ''}${f.flag}</div>
-      <span class="wl" title="Стен в запасе">${A.icon('wall', 16)}${q.walls}</span>
-      <div class="prog"><div class="bar-t"><b style="width:${f.pr}%"></b></div><span title="Клеток до цели">${A.goalArrow(q.side, 12)}${f.d}</span></div></li>`;
+      <span class="wl"><span title="Стен в запасе">${A.icon('wall', 15)}${q.walls}</span><span title="Карт в руке">${A.icon('cards', 15)}${q.hand.length}</span></span>
+      <div class="prog">${roleTag(q)}<div class="bar-t"><b style="width:${f.pr}%"></b></div><span title="Клеток до цели">${A.goalArrow(q.side, 12)}${f.d}</span></div></li>`;
   }).join('');
   $('#chips').innerHTML = g.players.map((q) => {
     const f = playerInfo(q);
-    return `<li class="chip${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}"><div class="top">${A.shape(q.i, 16)}<span>${esc(q.name)}</span><b>${f.d}</b></div>
+    return `<li class="chip${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}"><div class="top">${A.shape(q.i, 16)}<span>${esc(q.name)}</span>${q.role ? `<em title="${esc(E.ROLES[q.role].name + ': ' + E.ROLES[q.role].text)}">${A.icon(A.ROLE_ICON[q.role], 13)}</em>` : ''}<b>${f.d}</b></div>
       <div class="bar-t"><b style="width:${f.pr}%"></b></div></li>`;
   }).join('');
 
-  const key = `${g.id}:${g.turns}:${g.turn}:${g.phase}:${g.roll}`;
-  if (key !== turnKey) {
-    turnKey = key; preview = null;
-    if (myTurn && g.phase === 'act') { const o = E.options(g); mode = o.move ? 'move' : o.wall ? 'wall' : 'break'; }
-    if (myTurn && g.phase === 'roll' && !isLocal) sfx.play('turn');
-  }
+  const key = `${g.id}:${g.turns}:${g.turn}`;
+  if (key !== turnKey) { turnKey = key; preview = null; pendingCard = null; mode = 'move'; if (myTurn && !isLocal) sfx.play('turn'); }
+  const o = myTurn ? E.options(g) : {};
+  if (myTurn && mode !== 'target' && !((mode === 'move' && o.move) || (mode === 'wall' && o.wall) || (mode === 'role' && (o.brk || o.rot))))
+    mode = o.move ? 'move' : o.wall ? 'wall' : o.brk || o.rot ? 'role' : 'none';
 
-  const o = myTurn && g.phase === 'act' ? E.options(g) : { move: false, wall: false, brk: false };
-  const canRoll = myTurn && g.phase === 'roll' && !pending;
   $('#tcWho').innerHTML = `${A.shape(p.i, 24)}<span>${esc(p.name)}</span>${myTurn && !isLocal ? '<i>· вы</i>' : ''}`;
+  const extras = [g.t.freeStep && 'бесплатный шаг', g.t.masonFree && 'бесплатная стена', g.t.freeWalls && 'стена картой', E.crossBudget(g, p) && 'можно сквозь стену'].filter(Boolean);
   let st;
   if (g.over) st = 'Партия окончена';
-  else if (rolling) st = 'Кубик катится…';
-  else if (g.phase === 'roll') st = myTurn ? 'Ваш ход: бросьте кубик' : (p.bot || !myTurn && isLocal ? 'Думает…' : 'Бросает кубик…');
-  else st = `Кубик <b>${g.roll}</b> → до <b>${E.maxSteps(g.roll)}</b> ${plural(E.maxSteps(g.roll), 'клетки', 'клеток', 'клеток')} · <b>${g.dice[1 - g.sel]}</b> получит ${esc(nextName())}`;
+  else if (!myTurn) st = p.bot || isLocal ? 'Думает…' : 'Ходит…';
+  else if (mode === 'target') st = `Выберите стену для «${E.CARDS[p.hand[pendingCard]].name}»`;
+  else st = `Осталось <b>${g.ap}</b> ОД${extras.length ? ' · ' + extras.join(' · ') : ''}`;
   $('#tcStatus').innerHTML = st;
-  $('#rollBtn').classList.toggle('hidden', !canRoll);
-  $('.dock').classList.toggle('can-roll', canRoll);
-  renderDice(myTurn);
 
-  $('#aMove').textContent = g.roll ? `до ${E.maxSteps(g.roll)}` : '1–2';
+  // очки действия: полные кружки — ОД, со значком — бесплатные действия этого хода
+  const pips = [];
+  for (let k = 0; k < Math.max(g.ap, 2); k++) pips.push(`<i class="${k < g.ap ? 'on' : ''}"></i>`);
+  if (g.t.freeStep) pips.push(`<i class="free" title="Бесплатный шаг">${A.icon('move', 12)}</i>`);
+  if (g.t.masonFree) pips.push(`<i class="free" title="Бесплатная стена">${A.icon('wall', 12)}</i>`);
+  $('#ap').innerHTML = pips.join(''); $('#ap').setAttribute('aria-label', `Очки действия: ${g.ap}`);
+  $('#endBtn').disabled = !myTurn || pending;
+
+  const rs = p.role ? roleState(p) : null;
+  $('#roleBox').innerHTML = p.role ? `${A.icon(A.ROLE_ICON[p.role], 18)}<div><b>${E.ROLES[p.role].name}</b><span>${esc(E.ROLES[p.role].text)}</span></div><em class="${rs.ready ? 'ok' : ''}">${rs.text}</em>` : '';
+  $('#roleBox').classList.toggle('hidden', !p.role);
+  const activeRole = ACTIVE_ROLE[p.role];
+  $('#roleBtn').classList.toggle('hidden', !activeRole);
+  $('#acts').classList.toggle('two', !activeRole);
+  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 24); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; }
+  $('#aMove').textContent = `до ${E.stepBudget(g)}`;
   $('#aWall').textContent = `${p.walls} шт.`;
-  $('#aBreak').textContent = g.roll === 6 ? `${g.walls.length} шт.` : 'на 6';
   $$('#acts button').forEach((b) => {
-    const m = b.dataset.m, active = myTurn && g.phase === 'act';
-    b.disabled = !active || (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'break' && !o.brk);
-    b.setAttribute('aria-pressed', active && mode === m);
+    const m = b.dataset.m;
+    b.disabled = !myTurn || pending || (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'role' && !(o.brk || o.rot));
+    b.setAttribute('aria-pressed', myTurn && mode === m);
   });
+
+  // рука: свои карты видны всегда, чужие — только количество
+  const owner = view.you >= 0 ? g.players[view.you] : null, hand = owner ? owner.hand : [];
+  const canCard = myTurn && !pending && g.t.cardsPlayed < cardLimit(p);
+  $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="card${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].text)}">
+      <span class="ci">${A.icon(A.CARD_ICON[c], 20)}</span><b>${E.CARDS[c].name}</b><small>${esc(E.CARDS[c].text)}</small></button>`).join('')
+    : `<p class="note">${owner ? 'Карт нет — новая придёт в начале хода' : 'Карты видны только игрокам'}</p>`;
+  $('#handNote').textContent = owner ? `${hand.length}/${owner.role === 'gambler' ? 4 : 3}${myTurn && g.t.cardsPlayed >= cardLimit(p) ? ' · уже сыграна' : ''}` : '';
 
   const coarse = matchMedia('(pointer:coarse)').matches;
   let hint, ic = 'move';
   if (g.over) hint = 'Партия окончена.';
-  else if (!myTurn) hint = isLocal ? 'Ходит бот…' : `Ждём ход игрока ${p.name}…`;
-  else if (g.phase === 'roll') { hint = coarse ? 'Нажмите на кубик или «Бросить».' : 'Бросьте кубик: кнопка или <kbd>Пробел</kbd>.'; ic = 'dice'; }
-  else if (mode === 'move') hint = 'Выберите клетку: цифра — сколько шагов. Цель подсвечена.';
+  else if (!myTurn) hint = isLocal ? 'Ходит бот…' : `Ждём ход игрока ${esc(p.name)}…`;
+  else if (mode === 'move') hint = 'Выберите клетку: цифра — сколько шагов. Можно шагнуть и потом поставить стену.';
   else if (mode === 'wall') { hint = coarse ? 'Коснитесь линии между клетками, затем «Поставить».' : 'Наведите на точку между клетками и кликните. <kbd>R</kbd> или правый клик — повернуть.'; ic = 'wall'; }
-  else { hint = 'Выберите стену, которую хотите сломать.'; ic = 'break'; }
+  else if (mode === 'role') { hint = p.role === 'sapper' ? 'Выберите стену, которую сломать.' : 'Выберите стену, которую повернуть.'; ic = A.ROLE_ICON[p.role]; }
+  else if (mode === 'target') { hint = 'Выберите стену на поле. <kbd>Esc</kbd> — отмена.'; ic = A.CARD_ICON[p.hand[pendingCard]]; }
+  else { hint = 'Действий не осталось — завершите ход.'; ic = 'check'; }
   $('#hint').innerHTML = `${A.icon(ic, 18)}<span>${hint}</span>`;
-  const mtxt = myTurn && g.phase === 'act' && mode === 'wall' && !preview ? 'Коснитесь линии между клетками' : myTurn && g.phase === 'act' && mode === 'break' ? 'Коснитесь стены, чтобы сломать' : st;
+  const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? 'Коснитесь линии между клетками' : mode === 'role' || mode === 'target' ? 'Коснитесь стены на поле' : st;
   $('#mstatus').innerHTML = `${A.shape(p.i, 16)}<b>${esc(p.name)}</b><span>· ${mtxt}</span>`;
 
   $('#log').innerHTML = g.log.slice(0, 10).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
@@ -441,27 +439,39 @@ board.addEventListener('click', (e) => {
     if (lastPtr === 'touch') { preview = wallAt(e); renderGame(); return; }
     if (!preview) preview = wallAt(e);
     placePreview();
-  } else if (mode === 'break') {
-    const c = e.target.closest('[data-wall]'); if (c) send({ t: 'break', i: +c.dataset.wall });
+  } else if (mode === 'role' || mode === 'target') {
+    const c = e.target.closest('[data-wall]'); if (!c) return;
+    const i = +c.dataset.wall, p = E.cur(g);
+    if (mode === 'target') { const card = pendingCard; pendingCard = null; mode = 'move'; send({ t: 'card', c: card, i }); }
+    else send({ t: ACTIVE_ROLE[p.role].act, i });
   }
 });
 $('#cfRot').onclick = rotatePreview;
 $('#cfNo').onclick = () => { preview = null; renderGame(); };
 $('#cfYes').onclick = () => { if (preview) placePreview(); };
-function setMode(m) { if (!canAct()) return; const b = $(`#acts [data-m=${m}]`); if (b.disabled) return; mode = m; preview = null; forcedO = null; renderGame(); }
+function setMode(m) { if (!canAct()) return; const b = $(`#acts [data-m=${m}]`); if (!b || b.disabled || b.classList.contains('hidden')) return; mode = m; preview = null; forcedO = null; pendingCard = null; renderGame(); }
+function playCard(i) {
+  if (!canAct()) return;
+  const c = E.cur(g).hand[i]; if (!c) return;
+  if (E.CARDS[c].target === 'wall') {
+    if (!g.walls.length) return toast('На поле пока нет стен', true);
+    if (mode === 'target' && pendingCard === i) { pendingCard = null; mode = 'move'; } else { pendingCard = i; mode = 'target'; preview = null; }
+    renderGame();
+  } else send({ t: 'card', c: i });
+}
+$('#hand').addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (b && !b.disabled) playCard(+b.dataset.c); });
+$('#endBtn').onclick = () => { if (canAct()) { preview = null; pendingCard = null; send({ t: 'end' }); } };
 $('#acts').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
-const doRoll = () => { if (g && g.phase === 'roll' && view.you === g.turn && !pending && !g.over) send({ t: 'roll' }); };
-$('#rollBtn').onclick = doRoll;
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { $('#rules').classList.add('hidden'); document.body.classList.remove('sheet-open'); if (g) { preview = null; renderGame(); } return; }
+  if (e.key === 'Escape') { $('#rules').classList.add('hidden'); document.body.classList.remove('sheet-open'); if (g) { preview = null; if (mode === 'target') { mode = 'move'; pendingCard = null; } renderGame(); } return; }
   if (!g || $('#game').classList.contains('hidden') || /INPUT|TEXTAREA/.test(document.activeElement.tagName) || e.metaKey || e.ctrlKey) return;
   const k = e.key.toLowerCase();
-  if (e.code === 'Space') { e.preventDefault(); doRoll(); }
+  if (e.key === 'Enter') { e.preventDefault(); $('#endBtn').click(); }
   else if (k === 'm' || k === 'ь') setMode('move');
   else if (k === 'w' || k === 'ц') setMode('wall');
-  else if (k === 'b' || k === 'и') setMode('break');
+  else if (k === 'e' || k === 'у') setMode('role');
   else if ((k === 'r' || k === 'к') && mode === 'wall') rotatePreview();
-  else if ((k === '1' || k === '2') && g.dice && view.you === g.turn && g.phase === 'act' && !pending && +k - 1 !== g.sel) send({ t: 'select', d: +k - 1 });
+  else if (/^[1-4]$/.test(k)) playCard(+k - 1);
 });
 
 // Возврат в комнату после перезагрузки и вход по ссылке ?room=CODE

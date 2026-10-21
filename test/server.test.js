@@ -41,17 +41,21 @@ await a.wait((c) => c.last.phase === 'playing');
 assert.equal(a.last.game.turn, 0);
 
 // Чужой ход отклоняется
-b.send({ t: 'roll' });
+b.send({ t: 'end' });
 await b.wait((c) => c.msgs.some((m) => m.t === 'err'));
 
-// Играем: оба ходят простыми легальными ходами пока не победит кто-то.
+// Скрытая информация: каждый видит только свою руку.
+assert.ok(a.last.game.players[0].hand.every(Boolean) && a.last.game.players[1].hand.every((c) => c === null));
+assert.ok(b.last.game.players[1].hand.every(Boolean) && b.last.game.players[0].hand.every((c) => c === null));
+assert.equal(a.last.game.deck, undefined, 'колода не уходит клиентам');
+
+// Играем: каждый ходит по своему снимку (со своей рукой), пока кто-то не победит.
+const stamp = (c) => { const g = c.last.game; return `${g.turns}:${g.turn}:${g.ap}:${g.fxSeq}:${c.last.phase}`; };
 let guard = 0;
-while (a.last.phase === 'playing' && guard++ < 400) {
-  const g = a.last.game, who = g.turn === 0 ? a : b;
-  const seq = g.fxSeq;
-  if (g.phase === 'roll') who.send({ t: 'roll' });
-  else who.send(botAct(hydrate(g)));
-  await a.wait((c) => c.last.game.fxSeq !== seq || c.last.phase !== 'playing', 3000).catch(() => {});
+while (a.last.phase === 'playing' && guard++ < 600) {
+  const who = a.last.game.turn === 0 ? a : b, before = stamp(a);
+  who.send(botAct(hydrate(who.last.game)));
+  await a.wait((c) => stamp(c) !== before, 3000).catch(() => {});
 }
 assert.equal(a.last.phase, 'over', 'партия завершилась');
 assert.ok(a.last.game.winner === 0 || a.last.game.winner === 1);
