@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070914">
+<title>WALL DUEL</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070914'/%3E%3Crect x='10' y='28' width='44' height='8' rx='3' fill='%2322d3ee'/%3E%3Ccircle cx='32' cy='46' r='8' fill='%23f472b6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800&family=Rajdhani:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="bgfx"></canvas>
+<div class="vignette"></div>
+
+<!-- ГЛАВНАЯ -->
+<section id="home" class="screen">
+  <div class="logo">
+    <div class="logo-mark"><i></i><i></i><i></i></div>
+    <h1>WALL<span>DUEL</span></h1>
+    <p>Кубик · Стены · Лабиринт</p>
+  </div>
+  <div class="panel narrow">
+    <label class="field"><span>Ваше имя</span><input id="name" maxlength="14" placeholder="Игрок" autocomplete="off"></label>
+    <button class="btn primary" id="bCreate"><b>Создать комнату</b><small>стать хостом и пригласить друзей</small></button>
+    <button class="btn" id="bBrowse"><b>Найти комнату</b><small>список открытых или вход по коду</small></button>
+    <button class="btn" id="bLocal"><b>Играть здесь</b><small>за одним экраном и против ботов</small></button>
+    <div class="offline hidden" id="offlineNote">Онлайн-режим доступен при запуске через сервер: <code>npm start</code></div>
+    <button class="link" id="bRules">Правила игры</button>
+  </div>
+</section>
+
+<!-- СОЗДАНИЕ КОМНАТЫ -->
+<section id="create" class="screen hidden">
+  <div class="panel narrow">
+    <h2>Новая комната</h2>
+    <label class="field"><span>Название</span><input id="roomTitle" maxlength="24" placeholder="Дуэль у костра"></label>
+    <label class="check"><input type="checkbox" id="roomPublic" checked><span>Показывать в списке комнат</span></label>
+    <button class="btn primary center" id="bCreateGo">Создать</button>
+    <button class="link" data-back>Назад</button>
+  </div>
+</section>
+
+<!-- ПОИСК КОМНАТЫ -->
+<section id="browse" class="screen hidden">
+  <div class="panel narrow">
+    <h2>Комнаты</h2>
+    <div class="codein"><input id="codeIn" maxlength="4" placeholder="КОД" autocomplete="off"><button class="btn primary" id="bJoinCode">Войти</button></div>
+    <div id="roomList" class="rooms"></div>
+    <button class="link" data-back>Назад</button>
+  </div>
+</section>
+
+<!-- ЛОКАЛЬНАЯ ИГРА -->
+<section id="local" class="screen hidden">
+  <div class="panel narrow">
+    <h2>Игра на одном экране</h2>
+    <div class="seg" id="segN"></div>
+    <div id="localSeats"></div>
+    <label class="check"><input type="checkbox" id="localBonus" checked><span>Бонус-клетки</span></label>
+    <button class="btn primary center" id="bLocalGo">Играть</button>
+    <button class="link" data-back>Назад</button>
+  </div>
+</section>
+
+<!-- ЛОББИ -->
+<section id="lobby" class="screen hidden">
+  <div class="panel wide">
+    <div class="lobby-head">
+      <div><div class="tiny">Комната</div><h2 id="lbTitle"></h2></div>
+      <button class="code" id="lbCode" title="Скопировать ссылку-приглашение"></button>
+    </div>
+    <div id="lbSeats" class="seats"></div>
+    <div class="lobby-opts" id="lbOpts">
+      <label class="check"><input type="checkbox" id="optBonus"><span>Бонус-клетки</span></label>
+      <label class="check"><input type="checkbox" id="optPublic"><span>Видна в списке</span></label>
+    </div>
+    <div class="lobby-actions">
+      <button class="btn" id="lbBot">+ Бот</button>
+      <button class="btn primary" id="lbStart">Начать игру</button>
+    </div>
+    <div class="tiny center" id="lbWait"></div>
+    <button class="link" id="lbLeave">Покинуть комнату</button>
+  </div>
+</section>
+
+<!-- ИГРА -->
+<section id="game" class="screen hidden">
+  <div class="game-grid">
+    <div id="boardWrap">
+      <svg id="board" viewBox="0 0 612 612"></svg>
+      <canvas id="pfx"></canvas>
+    </div>
+    <aside id="side">
+      <div id="players"></div>
+      <div class="panel turnbox">
+        <div class="scene"><div class="cube" id="cube"></div></div>
+        <div class="turninfo">
+          <div class="tiny">Ходит</div>
+          <div id="whoName" class="who"></div>
+          <div id="rollInfo" class="tiny"></div>
+        </div>
+      </div>
+      <button class="btn primary center" id="rollBtn">Бросить кубик</button>
+      <div id="acts">
+        <button data-m="move"><span>🚶</span>Идти</button>
+        <button data-m="wall"><span>🧱</span>Стена</button>
+        <button data-m="break"><span>🔨</span>Сломать</button>
+      </div>
+      <div id="hint" class="tiny"></div>
+      <div id="emotes"></div>
+      <div class="panel" id="log"></div>
+      <div class="bar">
+        <button id="bRules2">Правила</button>
+        <button id="bMute">Звук</button>
+        <button id="bExit">Выйти</button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div id="conn" class="conn hidden">Соединение потеряно, переподключаемся…</div>
+<div id="toast"></div>
+
+<div id="rules" class="modal hidden"><div class="panel">
+  <h2>Правила</h2>
+  <ul>
+    <li><b>Цель.</b> Первым дойти до линии напротив своей стартовой. Чужие фишки идут к вашей стартовой линии, она отмечена пунктиром вашего цвета.</li>
+    <li><b>Ход.</b> Бросьте кубик и выберите одно действие:
+      <ul>
+        <li>🚶 <b>Идти</b> на 1–3 клетки (1–2 → 1, 3–4 → 2, 5–6 → 3). Можно остановиться раньше. Сквозь стены и фишки идти нельзя.</li>
+        <li>🧱 <b>Поставить стену</b> длиной 2 клетки. Запас ограничен (10 / 8 / 6). Нельзя полностью закрывать путь к цели любого игрока.</li>
+        <li>🔨 <b>Сломать стену</b> — только на шестёрке.</li>
+      </ul></li>
+    <li><b>Бонус-клетки</b> срабатывают, когда вы остановились на них, и исчезают: 🧱 +2 стены, 🎲 ещё бросок, ❄️ следующий игрок пропускает ход.</li>
+    <li><b>Если ходить некуда</b> и стен нет, ход пропускается автоматически.</li>
+    <li><b>Онлайн.</b> Хост создаёт комнату и делится кодом или ссылкой, затем запускает игру. Можно добавить ботов. Если вы отключились, бот доиграет ваши ходы, а при возврате вы продолжите с того же места.</li>
+    <li><b>Управление.</b> Стена ставится кликом по линиям между клетками. На телефоне первое касание показывает превью, второе подтверждает. Клавиши: Пробел — бросок, M — идти, W — стена, B — сломать.</li>
+  </ul>
+  <button class="btn primary center" data-close>Понятно</button>
+</div></div>
+
+<div id="win" class="modal hidden"><div class="panel center">
+  <img class="trophy" src="img/trophy.webp" width="120" height="120" alt="">
+  <div class="wn" id="winName"></div>
+  <div class="tiny" id="winInfo"></div>
+  <button class="btn primary center" id="bAgain">Реванш</button>
+  <div class="tiny" id="winWait"></div>
+  <button class="link" id="bWinExit">Выйти</button>
+</div></div>
+
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>
