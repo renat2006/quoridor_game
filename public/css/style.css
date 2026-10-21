@@ -5,7 +5,7 @@
   --bg:#F3EFE6;--paper:#FFFDF8;--cell:#EFE9DD;--bed:#E7DFD0;--surface:#FFFDF8;--sunk:#ECE6DA;--line:#DDD4C4;--line-2:#BFB4A1;
   --ink:#1E1D1B;--ink-2:#4A453E;--muted:#6B645A;--on-ink:#FFFDF8;--hard:#1E1D1B;
   --p1:#E5482E;--p2:#2F6BD8;--p3:#EFAA14;--p4:#12946A;--danger:#C62A1E;
-  --r:12px;--r-sm:8px;--bw:1.75px;--dock-h:150px;
+  --r:12px;--r-sm:8px;--bw:1.75px;
   --sh:0 3px 0 var(--hard);--sh-lg:0 6px 0 var(--hard);
   --board-shadow:drop-shadow(0 6px 0 var(--hard));
   --ease:cubic-bezier(.2,.8,.2,1);--land:cubic-bezier(.34,1.4,.64,1);
@@ -217,7 +217,7 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 .tc-status{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--ink-2)}
 .tc-status b{font-family:var(--mono)}
 .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.acts.two{grid-template-columns:repeat(2,1fr)}
+.acts.no-role{grid-template-columns:repeat(2,1fr)}
 .acts button{height:48px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border-radius:var(--r-sm);border:var(--bw) solid var(--ink);background:var(--surface);box-shadow:0 2px 0 var(--hard);font-size:14px;transition:transform .08s,box-shadow .08s,background .12s}
 .acts b{font-weight:600}
 .acts small{font-size:11px;font-weight:500;color:var(--muted);font-family:var(--mono)}
@@ -310,6 +310,7 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 /* ---------- планшет ---------- */
 @media (max-width:1080px){
   .gwrap{grid-template-columns:minmax(0,1fr) 300px;gap:24px;padding:20px}
+  .acts small{display:none}
   .hero{gap:48px}
 }
 @media (max-width:900px){
@@ -343,19 +344,21 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
   .back span{display:none}
   .opts{margin-top:24px}
 
-  /* игра на телефоне: доска вписана по высоте экрана, док в одну строку, журнал шторкой */
-  .gbar{height:48px;padding:0 4px 0 12px}
+  /* игра на телефоне: экран — колонка на всю высоту; доска забирает всё свободное место, док прижат книзу */
+  #game{height:100dvh;min-height:0;overflow:hidden}
+  .gbar{flex:none;height:48px;padding:0 4px 0 12px}
   .gbar .wordmark{display:none}
   .roomchip{margin-left:4px;height:30px;padding:0 10px}.roomchip .lab{display:none}
   .gbar .ibtn{width:40px;height:40px}
   .gbar [data-act=theme]{display:none}
   .only-m{display:flex}
-  .gwrap{display:block;padding:8px 12px 0;max-width:none}
-  .stage{gap:8px;padding-bottom:calc(var(--dock-h) + 16px + env(safe-area-inset-bottom))}
-  .board{--fit:calc(100dvh - 48px - 8px - 46px - 8px - 24px - 8px - var(--dock-h) - 20px - env(safe-area-inset-bottom));width:min(100%,var(--fit));min-width:240px}
+  .gwrap{flex:1;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;max-width:none}
+  /* сцена — контейнер размеров: доска = меньшее из ширины и высоты за вычетом чипов (38) и статуса (22) с зазорами */
+  .stage{position:relative;flex:1;min-height:0;justify-content:center;gap:6px;padding:8px 8px 6px;container-type:size}
+  .board{flex:none;width:min(100cqw,100cqh - 72px);min-width:0}
   .tip{display:none}
-  .chips{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:6px;width:100%}
-  .chip{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;height:46px;padding:0 8px;border-radius:var(--r-sm);border:var(--bw) solid var(--line);min-width:0}
+  .chips{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:6px;width:100%;flex:none}
+  .chip{position:relative;display:flex;flex-direction:column;justify-content:center;gap:4px;height:38px;padding:0 8px;border-radius:var(--r-sm);border:var(--bw) solid var(--line);min-width:0}
   .chip.cur{border-color:var(--ink);background:var(--surface);box-shadow:var(--sh)}
   .chip.off{opacity:.55}
   .chip .top{display:flex;align-items:center;gap:5px;min-width:0;font-size:13px;font-weight:600}
@@ -365,27 +368,30 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
   .chip .top em{display:flex;color:var(--muted)}
   .chip .top b{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--ink-2)}
   .chip .meta{display:none}
-  .chip .bar-t{flex:none;height:4px;border:0;background:var(--line)}
+  .chip .bar-t{flex:none;height:3px;border:0;background:var(--line)}
   .chip .bar-t b{border-right:0}
   .chip .bubble{top:-12px;right:2px;width:32px;height:32px;font-size:16px}
-  .mstatus{display:flex;align-items:center;gap:8px;width:100%;height:24px;font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden}
+  .mstatus{display:flex;align-items:center;gap:8px;width:min(100cqw,100cqh - 72px);flex:none;height:22px;padding:0 2px;font-size:14px;color:var(--ink-2);white-space:nowrap;overflow:hidden}
   .mstatus b{color:var(--ink);font-weight:700}.mstatus .shape{flex:none}
   .mstatus span{overflow:hidden;text-overflow:ellipsis}
-  .confirm{position:fixed;left:12px;right:12px;width:auto;bottom:calc(var(--dock-h) + 10px + env(safe-area-inset-bottom));z-index:45;box-shadow:var(--sh)}
-  .panel{display:block;position:static}
+  .confirm{position:absolute;left:8px;right:8px;bottom:8px;width:auto;z-index:45;box-shadow:var(--sh)}
   .pblock{display:none}
-  .panel{display:block;position:static;max-height:none;overflow:visible}
-  .dock{position:fixed;left:0;right:0;bottom:0;z-index:40;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;border-width:var(--bw) 0 0;box-shadow:none;background:var(--bg)}
-  .turnbar{gap:8px}
-  .tb-who,.tc-status{display:none}
-  .turnbar{justify-content:space-between}
-  .ap i{width:18px;height:18px}
-  .end{height:36px}
-  .acts button{height:46px;font-size:13px}
+  .panel{display:block;position:static;flex:none;max-height:none;overflow:visible}
+  /* док: [Идти][Стена][Роль] [Завершить] / карты ровной сеткой */
+  .dock{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"acts end" "hand hand";gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;border-width:var(--bw) 0 0;box-shadow:none;background:var(--surface)}
+  .tb-who,.tc-status,.ap{display:none}
+  .turnbar{display:contents}
+  .end{grid-area:end;height:48px;padding:0 16px;font-size:15px}
+  .acts{grid-area:acts;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-columns:none;gap:6px}
+  .acts button{height:48px;flex-direction:column;gap:2px;padding:0 4px;font-size:12px;line-height:1.1}
+  .acts button .ic{width:18px;height:18px}
+  .acts b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .acts small{display:none}
-  .hand{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
-  .hand::-webkit-scrollbar{display:none}
-  .hcard{flex:none;height:34px}
+  .hand{grid-area:hand;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+  .hand .note{grid-column:1/-1;line-height:40px;text-align:center}
+  .hcard{height:40px;min-width:0;justify-content:center;gap:5px;padding:0 6px;border-radius:var(--r-sm);font-size:12px}
+  .hcard .ic{flex:none}
+  .hcard b{min-width:0;overflow:hidden;text-overflow:ellipsis}
   .extra{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:72dvh;overflow:auto;padding:16px 16px calc(20px + env(safe-area-inset-bottom));background:var(--surface);border-top:var(--bw) solid var(--ink);border-radius:18px 18px 0 0;transform:translateY(105%);transition:transform .3s var(--ease)}
   body.sheet-open .extra{transform:none}
   .sheet-h{display:flex;align-items:center;justify-content:space-between;font-size:17px}

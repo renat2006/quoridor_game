@@ -356,7 +356,7 @@ function renderGame() {
   const rs = rs0;
   const activeRole = ACTIVE_ROLE[p.role];
   $('#roleBtn').classList.toggle('hidden', !activeRole);
-  $('#acts').classList.toggle('two', !activeRole);
+  $('#acts').classList.toggle('no-role', !activeRole);
   if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 20); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; }
   $('#aMove').textContent = `до ${E.stepBudget(g)}`;
   $('#aWall').textContent = `${p.walls} шт.`;
@@ -384,7 +384,7 @@ function renderGame() {
   else if (mode === 'target') { hint = `«${E.CARDS[p.hand[pendingCard]].name}»: выберите стену на поле. <kbd>Esc</kbd> — отмена.`; ic = A.CARD_ICON[p.hand[pendingCard]]; }
   else { hint = 'Действий не осталось — завершите ход.'; ic = 'check'; }
   $('#hint').innerHTML = `${A.icon(ic, 18)}<span>${hint}</span>`;
-  const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? 'Коснитесь линии между клетками' : mode === 'role' || mode === 'target' ? 'Коснитесь стены на поле' : st;
+  const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? `<b>${g.ap}</b> ОД · коснитесь линии между клетками` : mode === 'role' || mode === 'target' ? `<b>${g.ap}</b> ОД · коснитесь стены на поле` : st;
   $('#mstatus').innerHTML = `${A.shape(p.i, 16)}<b>${esc(p.name)}</b><span>· ${mtxt}</span>`;
 
   $('#log').innerHTML = g.log.slice(0, 6).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
