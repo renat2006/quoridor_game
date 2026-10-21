@@ -1,57 +1,52 @@
 import * as E from './engine.js';
 import { RemoteNet, LocalNet } from './net.js';
-import { sfx, Particles, bgFx } from './fx.js';
+import { sfx } from './fx.js';
+import * as A from './art.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const N = E.N, S = 56, GP = 10, PAD = 14, P = S + GP, VB = PAD * 2 + N * S + (N - 1) * GP;
-const cx = (x) => PAD + x * P, cy = (y) => PAD + y * P;
-const COLORS = E.COLORS;
+const { cx, cy, S, VB, GP, PAD, P, N } = A;
 
 let net = null, view = null, g = null, gameId = null, seen = 0;
-let mode = 'move', preview = null, turnKey = '', prevWalls = 0, cubeK = 0, pending = false;
-let particles = null, wasOnline = false, listTimer = 0, isLocal = false, lastPtr = 'mouse';
+let mode = 'move', preview = null, turnKey = '', prevWalls = 0, pending = false, lastPtr = 'mouse';
+let isLocal = false, wasOnline = false, listTimer = 0, rollTimer = 0, dieShown = null, rolling = false;
 const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true };
 
-/* ---------- общие SVG-определения (градиенты, свечение) ---------- */
-function shade(hex, f) {
-  const n = parseInt(hex.slice(1), 16), k = 1 + f;
-  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
-  return `rgb(${c})`;
+/* ---------- тема, иконки, общие мелочи ---------- */
+const THEMES = ['auto', 'light', 'dark'];
+function applyTheme(t) {
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = t;
 }
-(function injectDefs() {
-  let d = `<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2548"/><stop offset="1" stop-color="#0e132b"/></linearGradient>
-  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>`;
-  COLORS.forEach((c, i) => {
-    d += `<radialGradient id="orb${i}" cx=".35" cy=".28" r=".85"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".22" stop-color="${c}"/><stop offset="1" stop-color="${shade(c, -0.6)}"/></radialGradient>`;
-  });
-  document.body.insertAdjacentHTML('afterbegin', `<svg width="0" height="0" style="position:absolute"><defs>${d}</defs></svg>`);
-})();
-
-function glyph(i, x, y, r = 9) {
-  const f = 'fill="#fff" opacity=".93"';
-  if (i === 0) return `<polygon ${f} points="${x},${y - r} ${x + r * 0.95},${y + r * 0.7} ${x - r * 0.95},${y + r * 0.7}"/>`;
-  if (i === 1) return `<polygon ${f} points="${x},${y - r * 1.1} ${x + r},${y} ${x},${y + r * 1.1} ${x - r},${y}"/>`;
-  if (i === 2) return `<circle cx="${x}" cy="${y}" r="${r * 0.72}" fill="none" stroke="#fff" stroke-width="3.2" opacity=".93"/>`;
-  const pts = Array.from({ length: 6 }, (_, k) => `${x + r * Math.cos(k * Math.PI / 3)},${y + r * Math.sin(k * Math.PI / 3)}`).join(' ');
-  return `<polygon ${f} points="${pts}"/>`;
+let theme = 'auto'; try { theme = localStorage.wd_theme || 'auto'; } catch {}
+applyTheme(theme);
+function cycleTheme() {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme);
+  try { localStorage.wd_theme = theme; } catch {}
+  toast({ auto: 'Тема: как в системе', light: 'Тема: светлая', dark: 'Тема: тёмная' }[theme]);
 }
-const avatar = (i, size = 42) => `<img class="av" src="img/pawn${i}.webp" width="${size}" height="${size}" alt="">`;
+$$('[data-icon]').forEach((el) => {
+  const svg = A.icon(el.dataset.icon, +el.dataset.size || 20);
+  el.outerHTML = el.id ? svg.replace('<svg', `<svg id="${el.id}"`) : svg;
+});
+$$('[data-logo]').forEach((el) => { el.outerHTML = A.logo(+el.dataset.logo); });
 
-/* ---------- экраны ---------- */
+let toastT; const toastEl = $('#toast');
+function toast(t, err = false) {
+  toastEl.textContent = t; toastEl.classList.toggle('err', err); toastEl.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
 function show(id) {
   $$('.screen').forEach((s) => s.classList.toggle('hidden', s.id !== id));
   clearInterval(listTimer);
-  if (id === 'browse') { listTimer = setInterval(() => net && net.send({ t: 'list' }), 2500); }
+  if (id === 'find') { net && net.send({ t: 'list' }); listTimer = setInterval(() => net && net.send({ t: 'list' }), 2500); }
   window.scrollTo(0, 0);
 }
-const toastEl = $('#toast'); let toastT;
-function toast(t) { toastEl.textContent = t; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2000); }
 const name = () => { const v = $('#name').value.trim() || 'Игрок'; try { localStorage.wd_name = v; } catch {} return v; };
 try { $('#name').value = localStorage.wd_name || ''; } catch {}
+const setSwitch = (el, on) => { el.classList.toggle('on', on); el.setAttribute('aria-checked', on); };
 
+/* ---------- транспорт ---------- */
 const canOnline = location.protocol.startsWith('http');
 function useRemote() {
   if (net instanceof RemoteNet) return net;
@@ -59,13 +54,12 @@ function useRemote() {
 }
 function useLocal() { net?.close?.(); net = new LocalNet(); net.onmsg = onMsg; return net; }
 
-/* ---------- сообщения от сервера ---------- */
 function onMsg(m) {
   switch (m.t) {
     case 'status': if (m.online) wasOnline = true; $('#conn').classList.toggle('hidden', m.online || !wasOnline); break;
     case 'room': onRoom(m); break;
-    case 'list': renderList(m.rooms); break;
-    case 'err': pending = false; toast('🚫 ' + m.msg); sfx.play('error'); break;
+    case 'list': renderRooms(m.rooms); break;
+    case 'err': pending = false; toast(m.msg, true); sfx.play('error'); if (g) renderGame(); break;
     case 'left': view = null; g = null; gameId = null; show('home'); history.replaceState(null, '', location.pathname); if (m.msg) toast(m.msg); break;
     case 'emote': showEmote(m.seat, m.e); break;
   }
@@ -80,8 +74,10 @@ function onRoom(m) {
   }
   const ng = E.hydrate(m.game);
   if (ng.id !== gameId) {
-    gameId = ng.id; g = ng; seen = ng.fxSeq; prevWalls = 0; turnKey = '';
+    gameId = ng.id; g = ng; seen = ng.fxSeq; prevWalls = 0; turnKey = ''; dieShown = null; mode = 'move'; preview = null;
     buildBoard(); $('#win').classList.add('hidden'); show('game');
+    if (g.roll) setDie(g.roll, false);
+    if (g.over) showWin(g.winner);
   } else {
     const evs = ng.fx.filter((e) => e.seq > seen); g = ng; seen = ng.fxSeq;
     evs.forEach(playFx);
@@ -89,39 +85,70 @@ function onRoom(m) {
   renderGame();
 }
 
-/* ---------- главная / создание / поиск / локальная ---------- */
-if (!canOnline) { $('#offlineNote').classList.remove('hidden'); $('#bCreate').disabled = true; $('#bBrowse').disabled = true; }
-$('#bCreate').onclick = () => { $('#roomTitle').value ||= name() + ' · дуэль'; show('create'); };
-$('#bCreateGo').onclick = () => { useRemote().send({ t: 'create', name: name(), title: $('#roomTitle').value, isPublic: $('#roomPublic').checked }); };
-$('#bBrowse').onclick = () => { useRemote().send({ t: 'list' }); show('browse'); };
-$('#bJoinCode').onclick = () => joinCode($('#codeIn').value);
-$('#codeIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinCode($('#codeIn').value); });
-function joinCode(c) { c = String(c).trim().toUpperCase(); if (c.length !== 4) return toast('Введите 4-буквенный код'); useRemote().send({ t: 'join', code: c, name: name() }); }
-function renderList(rooms) {
-  const el = $('#roomList');
-  el.innerHTML = rooms.length ? '' : '<div class="empty">Открытых комнат пока нет.<br>Создайте свою!</div>';
-  rooms.forEach((r) => {
-    const b = document.createElement('button'); b.className = 'room-item';
-    b.innerHTML = `<div class="t"><b>${esc(r.title)}</b><span class="tiny">хост: ${esc(r.host)} · ${r.players}/${r.max}</span></div><span class="c">${r.code}</span>`;
-    b.onclick = () => joinCode(r.code); el.appendChild(b);
-  });
-}
-$$('[data-back]').forEach((b) => (b.onclick = () => show('home')));
+/* ---------- главная ---------- */
+$('#heroBoard').innerHTML = A.staticBoard(A.demoGame());
+if (!canOnline) { $('#offlineNote').classList.remove('hidden'); $('#bCreate').disabled = true; $('#bFind').disabled = true; }
+$$('[data-go]').forEach((b) => (b.onclick = () => show(b.dataset.go)));
+$('#bCreate').onclick = () => { $('#roomTitle').value ||= name() + ': партия'; show('create'); };
+$('#bFind').onclick = () => { useRemote(); show('find'); updateCode(); };
 $('#bLocal').onclick = () => { renderLocal(); show('local'); };
+$$('[data-act=rules]').forEach((b) => (b.onclick = () => $('#rules').classList.remove('hidden')));
+$$('[data-close]').forEach((b) => (b.onclick = () => $('#rules').classList.add('hidden')));
+$$('[data-act=theme]').forEach((b) => (b.onclick = cycleTheme));
+$('[data-act=mute]').onclick = () => { sfx.toggle(); muteLabel(); };
+function muteLabel() { $('#muteIc').closest('button').querySelector('span').textContent = sfx.muted ? 'Без звука' : 'Звук'; $('#muteIc').outerHTML = A.icon(sfx.muted ? 'mute' : 'sound').replace('<svg', '<svg id="muteIc"'); }
+muteLabel();
+$('[data-act=exit]').onclick = () => exitGame();
+$('[data-act=log]').onclick = () => $('#logbox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+/* ---------- создание, поиск ---------- */
+$('#roomPublic').onclick = (e) => setSwitch(e.currentTarget, !e.currentTarget.classList.contains('on'));
+$('#bCreateGo').onclick = () => useRemote().send({ t: 'create', name: name(), title: $('#roomTitle').value, isPublic: $('#roomPublic').classList.contains('on') });
+
+const cells = $$('#codeCells .cd');
+const codeVal = () => cells.map((c) => c.value).join('').toUpperCase();
+function updateCode() { $('#bJoinCode').disabled = codeVal().length !== 4; }
+cells.forEach((c, i) => {
+  c.addEventListener('input', () => {
+    c.value = c.value.replace(/[^A-Za-zА-Яа-я]/g, '').toUpperCase().slice(0, 1);
+    if (c.value && cells[i + 1]) cells[i + 1].focus(); updateCode();
+  });
+  c.addEventListener('keydown', (e) => {
+    if (e.key === 'Backspace' && !c.value && cells[i - 1]) { cells[i - 1].focus(); cells[i - 1].value = ''; updateCode(); }
+    if (e.key === 'Enter' && codeVal().length === 4) joinCode(codeVal());
+  });
+  c.addEventListener('paste', (e) => {
+    const t = (e.clipboardData.getData('text') || '').replace(/[^A-Za-zА-Яа-я]/g, '').toUpperCase().slice(0, 4);
+    if (!t) return; e.preventDefault(); cells.forEach((x, k) => (x.value = t[k] || '')); (cells[Math.min(t.length, 3)]).focus(); updateCode();
+  });
+});
+function joinCode(c) { c = String(c).trim().toUpperCase(); if (c.length !== 4) return toast('Введите 4-буквенный код', true); useRemote().send({ t: 'join', code: c, name: name() }); }
+$('#bJoinCode').onclick = () => joinCode(codeVal());
+function renderRooms(rooms) {
+  $('#roomsCount').textContent = rooms.length ? `обновляется сама · ${rooms.length}` : '';
+  $('#roomsEmpty').classList.toggle('hidden', rooms.length > 0);
+  $('.table-wrap').classList.toggle('hidden', rooms.length === 0);
+  $('#roomList').innerHTML = rooms.map((r) => `<tr><td><b>${esc(r.title)}</b></td><td class="muted-2">${esc(r.host)}</td>
+    <td>${Array.from({ length: r.max }, (_, i) => `<span class="dot${i < r.players ? ' on' : ''}"></span>`).join('')}<span class="mono note"> ${r.players}/${r.max}</span></td>
+    <td class="code-cell">${r.code}</td><td style="text-align:right"><button class="btn line sm" data-join="${r.code}">Войти</button></td></tr>`).join('');
+  $$('[data-join]').forEach((b) => (b.onclick = () => joinCode(b.dataset.join)));
+}
+
+/* ---------- локальная игра ---------- */
 function renderLocal() {
   const seg = $('#segN'); seg.innerHTML = '';
-  [2, 3, 4].forEach((n) => { const b = document.createElement('button'); b.textContent = n + ' игрока'; b.className = localCfg.n === n ? 'on' : ''; b.onclick = () => { localCfg.n = n; renderLocal(); }; seg.appendChild(b); });
+  [2, 3, 4].forEach((n) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n + ' игрока'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', localCfg.n === n); b.onclick = () => { localCfg.n = n; renderLocal(); }; seg.appendChild(b); });
   const box = $('#localSeats'); box.innerHTML = '';
   for (let i = 0; i < localCfg.n; i++) {
-    const r = document.createElement('div'); r.className = 'prow';
-    r.innerHTML = `<span class="dot" style="color:${COLORS[i]}"></span><input maxlength="14" value="${esc(localCfg.names[i])}"><label class="tog"><input type="checkbox" ${localCfg.bot[i] ? 'checked' : ''}> ИИ</label>`;
+    const r = document.createElement('div'); r.className = 'lrow';
+    r.innerHTML = `${A.shape(i, 36)}<input class="input" maxlength="14" value="${esc(localCfg.names[i])}" aria-label="Имя игрока ${i + 1}"><label class="tog">ИИ<button type="button" class="sw${localCfg.bot[i] ? ' on' : ''}" role="switch" aria-checked="${localCfg.bot[i]}" aria-label="Бот"><span></span></button></label>`;
     r.querySelector('input').oninput = (e) => (localCfg.names[i] = e.target.value || 'Игрок ' + (i + 1));
-    r.querySelector('input[type=checkbox]').onchange = (e) => (localCfg.bot[i] = e.target.checked);
+    r.querySelector('.sw').onclick = (e) => { const b = e.currentTarget; localCfg.bot[i] = !localCfg.bot[i]; setSwitch(b, localCfg.bot[i]); };
     box.appendChild(r);
   }
-  $('#localBonus').checked = localCfg.bonus;
+  setSwitch($('#localBonus'), localCfg.bonus);
 }
-$('#localBonus').onchange = (e) => (localCfg.bonus = e.target.checked);
+$('#localBonus').onclick = (e) => { localCfg.bonus = !localCfg.bonus; setSwitch(e.currentTarget, localCfg.bonus); };
 $('#bLocalGo').onclick = () => {
   const seats = Array.from({ length: localCfg.n }, (_, i) => ({ name: localCfg.names[i].trim() || 'Игрок ' + (i + 1), bot: localCfg.bot[i] }));
   useLocal().setup(seats, { bonus: localCfg.bonus });
@@ -130,170 +157,156 @@ $('#bLocalGo').onclick = () => {
 /* ---------- лобби ---------- */
 function renderLobby() {
   const v = view, host = v.you === v.host;
-  $('#lbTitle').textContent = v.title; $('#lbCode').textContent = v.code;
+  $('#lbCode').textContent = v.code; $('#lbTitle').textContent = v.title; $('#lbCount').textContent = `${v.seats.length} / 4`;
   const box = $('#lbSeats'); box.innerHTML = '';
   for (let i = 0; i < 4; i++) {
     const s = v.seats[i], d = document.createElement('div');
-    if (!s) { d.className = 'seat empty'; d.textContent = 'Свободно'; }
-    else {
-      d.className = 'seat'; d.style.color = COLORS[i];
-      const tags = [i === v.host ? '👑 хост' : '', s.bot ? '🤖 бот' : '', i === v.you ? 'вы' : ''].filter(Boolean).join(' · ');
-      d.innerHTML = `${avatar(i)}<div style="min-width:0"><div class="nm" style="color:var(--text)">${esc(s.name)}</div><div class="tag">${tags || '&nbsp;'}</div></div>`;
-      if (host && i !== v.you) { const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.title = 'Убрать'; x.onclick = () => net.send({ t: 'kick', i }); d.appendChild(x); }
+    if (s) {
+      d.className = 'slot';
+      const tags = (i === v.host ? `<span class="tag">${A.icon('crown', 14)}хост</span>` : '') + (s.bot ? `<span class="tag">${A.icon('bot', 14)}бот</span>` : '') + (!s.connected && !s.bot ? `<span class="tag">${A.icon('offline', 14)}офлайн</span>` : '');
+      d.innerHTML = `${A.shape(i, 36)}<div class="nm">${esc(s.name)}${i === v.you ? ' <i>· вы</i>' : ''}</div>${tags}`;
+      if (host && i !== v.you) { const x = document.createElement('button'); x.className = 'xbtn'; x.innerHTML = A.icon('x'); x.setAttribute('aria-label', 'Убрать ' + s.name); x.onclick = () => net.send({ t: 'kick', i }); d.appendChild(x); } else d.insertAdjacentHTML('beforeend', '<span class="pad44"></span>');
+    } else {
+      d.className = 'slot dashed'; d.style.paddingRight = '12px';
+      d.innerHTML = `${A.shape(i, 36, 1.75).replace('<svg', '<svg style="opacity:.35"')}<div class="nm" style="color:var(--muted);font-weight:400">Свободно</div>`;
+      if (host && i === v.seats.length) { const b = document.createElement('button'); b.className = 'btn line sm'; b.innerHTML = A.icon('plus', 18) + 'Добавить бота'; b.onclick = () => net.send({ t: 'addBot' }); d.appendChild(b); }
+      else if (!host) d.insertAdjacentHTML('beforeend', '<span class="note">ждём игрока</span>');
     }
     box.appendChild(d);
   }
-  $('#optBonus').checked = v.opts.bonus; $('#optPublic').checked = v.isPublic;
-  $('#optBonus').disabled = $('#optPublic').disabled = !host;
-  $('#lbBot').disabled = !host || v.seats.length >= 4;
-  $('#lbStart').disabled = !host || v.seats.length < 2;
-  $('#lbWait').textContent = host ? (v.seats.length < 2 ? 'Нужно минимум 2 игрока: позовите друга по коду или добавьте бота' : 'Всё готово, можно начинать') : 'Ждём, пока хост начнёт игру…';
+  const bonus = $('#optBonus'), pub = $('#optPublic');
+  setSwitch(bonus, v.opts.bonus); setSwitch(pub, v.isPublic);
+  bonus.disabled = pub.disabled = !host;
+  $('#optBonusTxt').textContent = host ? '' : (v.opts.bonus ? 'Включены' : 'Выключены');
+  $('#optPublicTxt').textContent = host ? '' : (v.isPublic ? 'Видна' : 'Только по коду');
+  $('#lbStart').classList.toggle('hidden', !host); $('#lbWait').classList.toggle('hidden', host);
+  $('#lbStart').disabled = v.seats.length < 2;
+  $('#lbNote').textContent = host ? (v.seats.length < 2 ? 'Нужно минимум 2 игрока: позовите друга по коду или добавьте бота.' : '') : '';
 }
-$('#lbBot').onclick = () => net.send({ t: 'addBot' });
+$('#optBonus').onclick = (e) => net.send({ t: 'opts', bonus: !e.currentTarget.classList.contains('on') });
+$('#optPublic').onclick = (e) => net.send({ t: 'opts', isPublic: !e.currentTarget.classList.contains('on') });
 $('#lbStart').onclick = () => net.send({ t: 'start' });
-$('#optBonus').onchange = (e) => net.send({ t: 'opts', bonus: e.target.checked });
-$('#optPublic').onchange = (e) => net.send({ t: 'opts', isPublic: e.target.checked });
 $('#lbLeave').onclick = () => net.send({ t: 'leave' });
-$('#lbCode').onclick = async () => {
-  const url = `${location.origin}/?room=${view.code}`;
-  try { await navigator.clipboard.writeText(url); toast('Ссылка-приглашение скопирована'); } catch { toast(url); }
-};
+const copy = async (txt, ok) => { try { await navigator.clipboard.writeText(txt); toast(ok); } catch { toast(txt); } };
+$('#lbLink').onclick = () => copy(`${location.origin}/?room=${view.code}`, 'Ссылка-приглашение скопирована');
+$('#lbCopy').onclick = () => copy(view.code, 'Код скопирован');
 
-/* ---------- игровое поле ---------- */
+/* ---------- поле ---------- */
 const board = $('#board');
 function buildBoard() {
-  let h = '<g id="cells">';
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    h += `<rect class="tile${(x + y) % 2 ? ' alt' : ''}" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="9"/>`;
-    g.players.forEach((p) => {
-      const sd = E.SIDES[p.side], c = p.color;
-      if (sd.goal(x, y)) {
-        const ang = p.side * 90;
-        h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="9" fill="${c}" opacity=".1"/>` +
-          `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${ang})"><polyline class="chev" style="animation-delay:${((x + y) % 5) * 0.25}s" points="-9,6 0,-5 9,6" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/></g>`;
-      }
-      const [sx, sy] = sd.start, home = p.side % 2 === 0 ? y === sy : x === sx;
-      if (home) h += `<rect x="${cx(x) + 3}" y="${cy(y) + 3}" width="${S - 6}" height="${S - 6}" rx="7" fill="none" stroke="${c}" stroke-width="1.5" stroke-dasharray="3 5" opacity=".5"/>`;
-    });
-  }
-  h += '</g><g id="bonuses"></g><g id="walls"></g><g id="overlay"></g><g id="pawns">';
-  g.players.forEach((p, i) => {
-    h += `<g class="pawn" id="pawn${i}" style="transform:translate(${cx(p.x)}px,${cy(p.y)}px)">
-      <ellipse cx="28" cy="47" rx="17" ry="5" fill="#000" opacity=".45" filter="url(#soft)"/>
-      <ellipse class="ring" cx="28" cy="48" rx="25" ry="9" fill="none" stroke="${p.color}" stroke-width="2.5" filter="url(#glow)"/>
-      <image class="bob" href="img/pawn${i}.webp" x="0" y="-8" width="56" height="56"/></g>`;
-  });
-  board.innerHTML = h + '</g>';
-  if (!particles) particles = new Particles($('#pfx'), board);
-  particles.vb = VB; particles.resize();
-  buildCube(); if (g.roll) setCube(g.roll, false);
+  board.innerHTML = A.boardDefs + `<g id="base">${A.boardBase(g)}</g><g id="bonuses"></g><g id="walls"></g><g id="overlay"></g><g id="pawns">` +
+    g.players.map((p) => A.pawnGroup(p, { id: 'pawn' + p.i })).join('') + '</g>';
+  $('#gCode').textContent = isLocal ? 'локально' : view.code;
+  $('#plN').textContent = g.n;
+  buildDie();
 }
 
-const wallRect = (o, x, y) => (o === 'h' ? { x: cx(x), y: cy(y) + S, w: 2 * S + GP, h: GP } : { x: cx(x) + S, y: cy(y), w: GP, h: 2 * S + GP });
 function drawDynamic() {
-  let b = '';
-  Object.entries(g.bonus).forEach(([k, t]) => { const [x, y] = k.split(',').map(Number); b += `<image class="bonus" href="img/bonus_${t}.webp" x="${cx(x) + 9}" y="${cy(y) + 9}" width="38" height="38" style="animation-delay:${(x + y) % 4 * 0.3}s"/>`; });
-  $('#bonuses').innerHTML = b;
-
-  const my = canAct(), breakable = my && mode === 'break';
-  let w = '';
-  g.walls.forEach((wl, i) => {
-    const r = wallRect(wl.o, wl.x, wl.y), c = COLORS[wl.owner], fresh = i >= prevWalls;
-    const core = wl.o === 'h' ? `x="${r.x + 5}" y="${r.y + r.h / 2 - 1}" width="${r.w - 10}" height="2"` : `x="${r.x + r.w / 2 - 1}" y="${r.y + 5}" width="2" height="${r.h - 10}"`;
-    w += `<g class="wallg${fresh ? ' fresh' : ''}${breakable ? ' breakable' : ''}" data-wall="${i}" style="color:${c}">
-      <rect x="${r.x - 1}" y="${r.y - 1}" width="${r.w + 2}" height="${r.h + 2}" rx="6" fill="${c}" opacity=".55" filter="url(#soft)"/>
-      <rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="5" fill="${c}"/>
-      <rect ${core} rx="1" fill="#fff" opacity=".9"/></g>`;
-  });
-  $('#walls').innerHTML = w; prevWalls = g.walls.length;
-
+  $('#bonuses').innerHTML = A.bonusLayer(g);
+  const my = canAct();
+  $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: my && mode === 'break' });
+  prevWalls = g.walls.length;
   let o = '';
-  if (my && g.phase === 'act') {
+  if (my) {
     const p = E.cur(g);
-    if (mode === 'move') {
-      E.reach(g, p, E.maxSteps(g.roll)).forEach((d, k) => {
-        const [x, y] = k.split(',').map(Number);
-        o += `<rect class="hint" data-cell="${k}" x="${cx(x) + 3}" y="${cy(y) + 3}" width="${S - 6}" height="${S - 6}" rx="8" style="color:${p.color}"/><text class="hint-n" x="${cx(x) + S / 2}" y="${cy(y) + S / 2 + 5}" text-anchor="middle">${d}</text>`;
-      });
-    } else if (mode === 'wall' && preview) {
-      const r = wallRect(preview.o, preview.x, preview.y), ok = E.wallLegal(g, preview.o, preview.x, preview.y).ok;
-      o += `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="5" fill="${ok ? p.color : '#ef4444'}" opacity=".75" filter="url(#glow)"/>`;
-    }
+    if (mode === 'move') o = A.hintLayer(g, p, E.reach(g, p, E.maxSteps(g.roll)));
+    else if (mode === 'wall' && preview) o = A.previewLayer(preview, E.wallLegal(g, preview.o, preview.x, preview.y).ok, p);
   }
   $('#overlay').innerHTML = o;
-  g.players.forEach((p, i) => {
-    const el = $('#pawn' + i); if (!el) return;
-    el.style.transform = `translate(${cx(p.x)}px,${cy(p.y)}px)`;
-    el.classList.toggle('turn', i === g.turn && !g.over);
+  g.players.forEach((p) => {
+    const el = $('#pawn' + p.i); if (!el) return;
+    el.style.transform = `translate(${cx(p.x) + S / 2}px,${cy(p.y) + S / 2}px)`;
+    el.classList.toggle('turn', p.i === g.turn && !g.over);
+    const fz = el.querySelector('.fz'), had = el.classList.contains('frozen');
+    if ((p.skip > 0) !== had) { el.classList.toggle('frozen', p.skip > 0); fz.innerHTML = p.skip > 0 ? A.frozenMark() : ''; }
   });
 }
 
 /* ---------- кубик ---------- */
-const FACE = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-function buildCube() {
-  $('#cube').style.transition = 'none';
-  $('#cube').innerHTML = [1, 2, 3, 4, 5, 6].map((v) => `<div class="face f${v}">${Array.from({ length: 9 }, (_, i) => `<i class="${PIPS[v].includes(i) ? 'on' : ''}"></i>`).join('')}</div>`).join('');
-  $('#cube').style.transform = 'rotateX(-18deg) rotateY(24deg)';
-  requestAnimationFrame(() => ($('#cube').style.transition = ''));
+const dieEl = $('#die');
+function buildDie() { dieEl.innerHTML = Array.from({ length: 9 }, () => '<i></i>').join(''); setDie(null, false); }
+function setDie(v, label = true) {
+  dieEl.querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', !!v && PIPS[v].includes(i)));
+  dieEl.classList.toggle('idle', !v);
+  dieEl.setAttribute('aria-label', v ? `Кубик: ${v}` : 'Кубик'); dieShown = v;
 }
-function setCube(v, anim = true) {
-  const [ax, ay] = FACE[v];
-  if (anim) cubeK++;
-  const spin = anim ? 720 * cubeK : 0;
-  $('#cube').style.transition = anim ? '' : 'none';
-  $('#cube').style.transform = `rotateX(${ax + spin}deg) rotateY(${ay + spin}deg)`;
+function rollAnim(final) {
+  clearInterval(rollTimer); rolling = true;
+  let n = 0;
+  dieEl.animate([{ transform: 'rotate(-6deg)' }, { transform: 'rotate(-180deg) translateY(-14px)', offset: 0.35 }, { transform: 'rotate(360deg) translateY(-6px)', offset: 0.7 }, { transform: 'rotate(-3deg) translateY(2px)', offset: 0.88 }, { transform: 'rotate(-6deg)' }], { duration: 1000, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  rollTimer = setInterval(() => { setDie(1 + Math.floor(Math.random() * 6)); sfx.play('tick'); if (++n >= 8) { clearInterval(rollTimer); setDie(final); rolling = false; } }, 90);
 }
 
 /* ---------- эффекты событий ---------- */
-const center = (x, y) => [cx(x) + S / 2, cy(y) + S / 2];
 function playFx(e) {
   const pl = g.players[e.p];
   switch (e.type) {
-    case 'roll': setCube(e.r); for (let i = 0; i < 6; i++) setTimeout(() => sfx.play('tick'), i * 120); setTimeout(() => sfx.play('roll'), 800); break;
-    case 'move': { const [x, y] = center(...e.to); setTimeout(() => particles.burst(x, y, pl.color, 22), 250); sfx.play('move'); break; }
-    case 'wall': {
-      const r = wallRect(e.o, e.x, e.y); particles.line(r.x, r.y + r.h / 2, r.x + r.w, r.y + r.h / 2, pl.color); if (e.o === 'v') particles.line(r.x + r.w / 2, r.y, r.x + r.w / 2, r.y + r.h, pl.color);
-      sfx.play('wall'); const bw = $('#boardWrap'); bw.classList.remove('shake'); void bw.offsetWidth; bw.classList.add('shake'); break;
+    case 'roll': rollAnim(e.r); setTimeout(() => sfx.play('roll'), 800); break;
+    case 'move': {
+      const el = $('#pawn' + e.p)?.querySelector('.pawn-body');
+      el?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-12px)', offset: 0.45 }, { transform: 'translateY(0)' }], { duration: 120 + 160 * Math.min(3, e.steps), easing: 'cubic-bezier(.2,.8,.2,1)' });
+      sfx.play('move'); break;
     }
-    case 'break': { const r = wallRect(e.o, e.x, e.y); particles.burst(r.x + r.w / 2, r.y + r.h / 2, '#ffffff', 34, 1.4); sfx.play('break'); break; }
-    case 'bonus': { const [x, y] = center(...e.at); particles.burst(x, y, '#fbbf24', 34, 1.3); sfx.play(e.type === 'freeze' ? 'freeze' : 'bonus'); toast(`${{ wall: '🧱', again: '🎲', freeze: '❄️' }[e.type]} ${pl.name}: ${E.BONUS[e.type]}`); break; }
-    case 'skip': toast(e.why === 'freeze' ? `❄️ ${pl.name} пропускает ход` : `${pl.name}: ходов нет, пропуск`); break;
-    case 'win': sfx.play('win'); particles.confetti(COLORS); setTimeout(() => showWin(e.p), 1200); break;
+    case 'wall': sfx.play('wall'); break;
+    case 'break': {
+      const r = A.wallRect(e.o, e.x, e.y);
+      $('#overlay').insertAdjacentHTML('beforeend', `<rect class="ghost" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" fill="${A.pv(e.p)}" stroke="var(--stroke)" stroke-width="1.5" style="transform-box:fill-box;transform-origin:center"/>`);
+      sfx.play('break'); break;
+    }
+    case 'bonus': sfx.play(e.type === 'freeze' ? 'freeze' : 'bonus'); toast(`${pl.name}: ${E.BONUS[e.type]}`); break;
+    case 'skip': toast(e.why === 'freeze' ? `${pl.name} пропускает ход: заморожен` : `${pl.name}: ходов нет, пропуск`); break;
+    case 'win': sfx.play('win'); fillGoal(e.p); setTimeout(() => showWin(e.p), 1200); break;
   }
 }
-function showWin(p) {
+function fillGoal(i) {
+  const p = g.players[i], goal = E.SIDES[p.side].goal; let h = '';
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (goal(x, y)) h += `<rect class="sweep" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="6" fill="${A.pv(i)}" fill-opacity=".5" style="transform-box:fill-box;transform-origin:left"/>`;
+  $('#overlay').insertAdjacentHTML('beforeend', h);
+  $$('#overlay .sweep').forEach((r, k) => r.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 500, delay: k * 40, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' }));
+}
+
+/* ---------- победа ---------- */
+const EDGE = ['верхнего', 'правого', 'нижнего', 'левого'];
+function showWin(i) {
   if (!g || !g.over) return;
-  const pl = g.players[p];
-  $('#winName').innerHTML = `<span style="color:${pl.color};text-shadow:0 0 22px ${pl.color}">${esc(pl.name)}</span><br>побеждает!`;
-  $('#winInfo').textContent = `Ходов: ${g.turns + 1} · Стен на поле: ${g.walls.length}`;
-  const can = isLocal || view.you === view.host;
+  const p = g.players[i];
+  $('#winTrophy').innerHTML = A.trophy(88);
+  $('#winT').textContent = p.name; $('#winSub').textContent = `первым дошёл до ${EDGE[p.side]} края`;
+  const t = Math.max(0, Math.round(((g.t1 || Date.now()) - g.t0) / 1000));
+  $('#winStats').innerHTML = [[g.turns + 1, 'ходов'], [g.walls.length, 'стен на поле'], [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, 'партия']].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
+  const rank = [...g.players].sort((a, b) => (b.i === i) - (a.i === i) || E.dist(g, a) - E.dist(g, b));
+  $('#winRows').innerHTML = rank.map((q, k) => `<tr><td class="mono" style="${k ? 'color:var(--muted)' : 'font-weight:600'}">${k + 1}</td><td><span class="pn" style="${k ? '' : 'font-weight:600'}">${A.shape(q.i, 18, 1.75)}${esc(q.name)}${q.bot ? ' <small class="note">бот</small>' : ''}</span></td><td class="mono r">${q.walls}</td><td class="mono r">${E.dist(g, q)}</td></tr>`).join('');
+  $('#winBoard').innerHTML = A.staticBoard(g);
+  const can = isLocal || (view && view.you === view.host);
   $('#bAgain').classList.toggle('hidden', !can);
-  $('#winWait').textContent = can ? '' : 'Ждём, пока хост предложит реванш…';
+  $('#winNote').textContent = can ? '' : 'Ждём хоста: реванш запускает он.';
   $('#win').classList.remove('hidden');
 }
 $('#bAgain').onclick = () => net.send({ t: 'rematch' });
-$('#bWinExit').onclick = $('#bExit').onclick = () => exitGame();
-function exitGame() {
-  if (g && !g.over && !confirm('Выйти из партии?')) return;
+$('#bWinExit').onclick = () => exitGame(true);
+function exitGame(force) {
+  if (!force && g && !g.over && !confirm('Выйти из партии?')) return;
   $('#win').classList.add('hidden');
   if (isLocal) { net.close(); net = null; view = null; g = null; gameId = null; show('home'); } else net.send({ t: 'leave' });
 }
 
-/* ---------- интерфейс партии ---------- */
+/* ---------- панель партии ---------- */
 const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn && g.phase === 'act';
+const logLine = (l) => `<li>${l.p >= 0 ? A.shape(l.p, 12, 2) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`;
 function renderGame() {
-  const p = E.cur(g), you = view.you;
-  const myTurn = !g.over && you === g.turn;
-  $('#boardWrap').style.setProperty('--cur', p.color);
-  $('#players').innerHTML = g.players.map((q, i) => {
-    const off = !isLocal && view.seats[i] && !view.seats[i].connected;
-    return `<div class="pl ${i === g.turn && !g.over ? 'cur' : ''} ${q.skip > 0 ? 'frozen' : ''} ${off ? 'off' : ''}" data-i="${i}" style="color:${q.color}">
-      <div class="nm">${avatar(i, 22)}${esc(q.name)}${i === you && !isLocal ? ' <small style="color:var(--mute)">(вы)</small>' : ''}${q.bot ? ' <small style="color:var(--mute)">🤖</small>' : ''}${off ? ' <small style="color:var(--mute)">офлайн</small>' : ''}</div>
-      <div class="st"><span>🧱 <b>${q.walls}</b></span><span>→ <b>${E.dist(g, q)}</b> кл.</span></div></div>`;
+  const p = E.cur(g), you = view.you, myTurn = !g.over && you === g.turn;
+  $('#gTurn').textContent = g.turns + 1;
+  $('#players').innerHTML = g.players.map((q) => {
+    const off = !isLocal && view.seats[q.i] && !view.seats[q.i].connected && !q.bot;
+    const cur = q.i === g.turn && !g.over;
+    const badge = cur ? '<span class="badge">Ходит</span>' : q.skip > 0 ? `<span class="badge dash">${A.icon('snow', 14)}пропуск</span>` : q.bot ? `<span class="badge soft">${A.icon('bot', 14)}бот</span>` : off ? `<span class="badge soft">${A.icon('offline', 14)}офлайн</span>` : '<span></span>';
+    return `<div class="pc${cur ? ' cur' : ''}${q.skip > 0 ? ' frozen' : ''}${off ? ' off' : ''}" data-i="${q.i}">${A.shape(q.i, 40)}
+      <div style="min-width:0"><div class="n">${esc(q.name)}${q.i === you && !isLocal ? ' <i>· вы</i>' : ''}</div>
+      <div class="st"><span title="Стены">${A.icon('wall', 16)}<b class="mono" style="font-weight:500">${q.walls}</b><span class="lab">${plural(q.walls, 'стена', 'стены', 'стен')}</span></span><span title="До цели">${A.icon('flag', 16)}<b class="mono" style="font-weight:500">${E.dist(g, q)}</b><span class="lab">до цели</span></span></div></div>${badge}</div>`;
   }).join('');
-  $('#whoName').textContent = p.name; $('#whoName').style.color = p.color;
-  $('.scene').classList.toggle('idle', g.roll === null);
+  $('#whoShape').innerHTML = A.shape(p.i, 32); $('#whoName').textContent = p.name;
+  $('#turnrow').innerHTML = `<div class="t">${A.shape(p.i, 20, 2.5)}Ходит ${esc(p.name)}${myTurn && !isLocal ? ' <i>· вы</i>' : ''}</div><span class="note">Ход <b class="mono" style="color:var(--ink)">${g.turns + 1}</b></span>`;
 
   const key = `${g.id}:${g.turns}:${g.turn}:${g.phase}:${g.roll}`;
   if (key !== turnKey) {
@@ -302,34 +315,43 @@ function renderGame() {
     if (myTurn && g.phase === 'roll' && !isLocal) sfx.play('turn');
   }
   const o = myTurn && g.phase === 'act' ? E.options(g) : { move: false, wall: false, brk: false };
-  $('#rollInfo').textContent = g.roll ? (g.phase === 'act' ? `выпало ${g.roll}: ход до ${E.maxSteps(g.roll)} кл.` : '') : '';
-  $('#rollBtn').classList.toggle('hidden', !(myTurn && g.phase === 'roll'));
-  $('#rollBtn').disabled = pending;
-  $('#acts').classList.toggle('hidden', !(myTurn && g.phase === 'act'));
+  if (g.roll && dieShown !== g.roll && !rolling) setDie(g.roll);
+  $('#dNum').textContent = g.roll ?? '–';
+  $('#dTxt').textContent = g.roll && g.phase === 'act' ? `ход до ${E.maxSteps(g.roll)} ${plural(E.maxSteps(g.roll), 'клетки', 'клеток', 'клеток')}` : (myTurn ? 'ваш бросок' : '');
+  const canRoll = myTurn && g.phase === 'roll';
+  $('#rollBtn').disabled = !canRoll || pending;
+  $('#rollTxt').textContent = canRoll ? 'Бросить кубик' : g.roll ? 'Кубик брошен' : 'Ждём бросок';
+  $('#dieBtn').disabled = !canRoll || pending;
+  $('#dock').classList.toggle('mine', myTurn);
+  $('#aWall').textContent = `${p.walls} шт.`; $('#aBreak').textContent = g.roll === 6 ? `${g.walls.length} шт.` : 'нужна 6';
   $$('#acts button').forEach((b) => {
     const m = b.dataset.m;
-    b.classList.toggle('on', mode === m);
-    b.disabled = (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'break' && !o.brk);
+    b.disabled = !myTurn || g.phase !== 'act' || (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'break' && !o.brk);
+    b.setAttribute('aria-pressed', myTurn && g.phase === 'act' && mode === m);
   });
   let hint = '';
-  if (g.over) hint = 'Игра окончена';
-  else if (you < 0 || !myTurn) hint = isLocal ? 'Думает ИИ…' : `Ходит ${p.name}…`;
-  else if (g.phase === 'roll') hint = 'Ваш ход: бросьте кубик (Пробел)';
-  else if (mode === 'move') hint = 'Выберите клетку. Можно остановиться раньше.';
-  else if (mode === 'wall') hint = 'Наведите на линию между клетками и кликните. Зелёное можно, красное нельзя.';
+  if (g.over) hint = 'Игра окончена.';
+  else if (!myTurn) hint = isLocal ? 'Думает бот…' : `Ходит ${p.name}…`;
+  else if (g.phase === 'roll') hint = 'Ваш ход: бросьте кубик (Пробел).';
+  else if (mode === 'move') hint = 'Выберите клетку. Цифра: сколько шагов до неё.';
+  else if (mode === 'wall') hint = 'Наведите на линию между клетками и кликните. Цель: ' + `${EDGE[p.side]} край.`;
   else hint = 'Кликните по стене, которую хотите сломать.';
-  $('#hint').textContent = hint;
-  $('#log').innerHTML = g.log.slice(0, 12).map((l) => `<div>${esc(l)}</div>`).join('');
-  $('#emotes').classList.toggle('hidden', isLocal);
+  $('#hint').innerHTML = `${A.icon('walk')}<span>${esc(hint)}</span>`;
+  $('#log').innerHTML = g.log.slice(0, 8).map(logLine).join('');
+  $('#emotes').classList.toggle('hidden', isLocal); $('#reactL').classList.toggle('hidden', isLocal);
+  const touchConfirm = myTurn && mode === 'wall' && preview && lastPtr === 'touch';
+  $('#confirm').classList.toggle('hidden', !touchConfirm);
   drawDynamic();
 }
-const EMOJIS = ['😀', '😎', '😡', '😭', '👍', '🔥'];
-$('#emotes').innerHTML = EMOJIS.map((e) => `<button>${e}</button>`).join('');
+function plural(n, a, b, c) { const m = n % 100, k = n % 10; return m > 10 && m < 15 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; }
+
+const EMOJIS = ['👍', '👏', '😮', '😂', '🤔', '😤'];
+$('#emotes').innerHTML = EMOJIS.map((e, i) => `<button aria-label="Реакция ${i + 1}">${e}</button>`).join('');
 $$('#emotes button').forEach((b) => (b.onclick = () => net.send({ t: 'emote', e: b.textContent })));
 function showEmote(seat, e) {
-  const card = $(`.pl[data-i="${seat}"]`); if (!card) return;
-  const s = document.createElement('span'); s.className = 'bubble'; s.textContent = e; card.appendChild(s);
-  sfx.play('emote'); setTimeout(() => s.remove(), 2300);
+  const card = $(`.pc[data-i="${seat}"]`); if (!card) return;
+  const s = document.createElement('div'); s.className = 'bubble'; s.textContent = e; card.appendChild(s);
+  sfx.play('emote'); setTimeout(() => s.remove(), 2500);
 }
 
 /* ---------- ввод ---------- */
@@ -346,45 +368,46 @@ board.addEventListener('pointermove', (e) => {
   const w = wallAt(e);
   if (!preview || preview.o !== w.o || preview.x !== w.x || preview.y !== w.y) { preview = w; drawDynamic(); }
 });
-board.addEventListener('pointerleave', () => { if (g && mode === 'wall' && preview) { preview = null; drawDynamic(); } });
-function send(m) { pending = true; net.send(m); setTimeout(() => { if (pending) { pending = false; if (g) renderGame(); } }, 2500); }
+board.addEventListener('pointerleave', (e) => { if (g && mode === 'wall' && preview && e.pointerType !== 'touch') { preview = null; drawDynamic(); } });
+function send(m) { pending = true; renderGame(); net.send(m); setTimeout(() => { if (pending) { pending = false; if (g) renderGame(); } }, 2500); }
+function placePreview() {
+  const lg = E.wallLegal(g, preview.o, preview.x, preview.y);
+  if (!lg.ok) { toast(lg.why, true); sfx.play('error'); return; }
+  const w = preview; preview = null; send({ t: 'wall', ...w });
+}
 board.addEventListener('click', (e) => {
   if (!canAct()) return;
   if (mode === 'move') {
     const c = e.target.closest('[data-cell]'); if (c) { const [x, y] = c.dataset.cell.split(',').map(Number); send({ t: 'move', x, y }); }
   } else if (mode === 'wall') {
     const w = wallAt(e);
-    if (lastPtr === 'touch' && !(preview && preview.o === w.o && preview.x === w.x && preview.y === w.y)) { preview = w; drawDynamic(); return; }
-    const lg = E.wallLegal(g, w.o, w.x, w.y);
-    if (!lg.ok) { toast('🚫 ' + lg.why); sfx.play('error'); return; }
-    send({ t: 'wall', ...w });
+    if (lastPtr === 'touch') { preview = w; renderGame(); return; }
+    preview = w; placePreview();
   } else if (mode === 'break') {
     const c = e.target.closest('[data-wall]'); if (c) send({ t: 'break', i: +c.dataset.wall });
   }
 });
+$('#cfNo').onclick = () => { preview = null; renderGame(); };
+$('#cfYes').onclick = () => { if (preview) placePreview(); };
 function setMode(m) { if (!canAct()) return; const b = $(`#acts [data-m=${m}]`); if (b.disabled) return; mode = m; preview = null; renderGame(); }
 $('#acts').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
-$('#rollBtn').onclick = () => { if (g && g.phase === 'roll' && view.you === g.turn) send({ t: 'roll' }); };
+const doRoll = () => { if (g && g.phase === 'roll' && view.you === g.turn && !pending) send({ t: 'roll' }); };
+$('#rollBtn').onclick = doRoll; $('#dieBtn').onclick = doRoll;
 document.addEventListener('keydown', (e) => {
-  if (!g || $('#game').classList.contains('hidden') || /INPUT/.test(document.activeElement.tagName)) return;
-  if (e.code === 'Space') { e.preventDefault(); if (g.phase === 'roll' && view.you === g.turn && !pending) send({ t: 'roll' }); }
+  if (e.key === 'Escape') { $('#rules').classList.add('hidden'); if (g) { preview = null; setMode('move'); } return; }
+  if (!g || $('#game').classList.contains('hidden') || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.code === 'Space') { e.preventDefault(); doRoll(); }
   else if (e.key === 'm' || e.key === 'M') setMode('move');
   else if (e.key === 'w' || e.key === 'W') setMode('wall');
   else if (e.key === 'b' || e.key === 'B') setMode('break');
-  else if (e.key === 'Escape') { preview = null; $('#rules').classList.add('hidden'); setMode('move'); }
 });
-
-/* ---------- прочее ---------- */
-const openRules = () => $('#rules').classList.remove('hidden');
-$('#bRules').onclick = $('#bRules2').onclick = openRules;
-$$('[data-close]').forEach((b) => (b.onclick = () => $('#rules').classList.add('hidden')));
-const muteLabel = () => ($('#bMute').textContent = sfx.muted ? '🔇 Без звука' : '🔊 Звук');
-$('#bMute').onclick = () => { sfx.toggle(); muteLabel(); }; muteLabel();
-bgFx($('#bgfx'));
 
 // Возврат в комнату после обновления страницы и вход по ссылке ?room=CODE
 if (canOnline) {
   useRemote();
   const code = new URLSearchParams(location.search).get('room');
-  if (code) { $('#codeIn').value = code.toUpperCase().slice(0, 4); show('browse'); net.send({ t: 'list' }); toast('Введите имя на главной или сразу нажмите «Войти»'); }
+  if (code && /^[A-Za-z]{4}$/.test(code)) {
+    show('find'); code.toUpperCase().split('').forEach((c, i) => (cells[i].value = c)); updateCode(); cells[3].focus();
+    toast('Приглашение: нажмите «Войти»');
+  }
 }

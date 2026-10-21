@@ -28,7 +28,7 @@ export class RemoteNet {
   send(m) {
     if (this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); else this.queue.push(m);
   }
-  close() { this.closed = true; this.ws.close(); }
+  close() { this.closed = true; this.onmsg = () => {}; this.ws.close(); }
 }
 
 // Локальная игра: все люди за одним экраном, остальные места занимают боты.

@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
 
 /** @type {Map<string,{room:Room,socks:Set<any>}>} */
 const rooms = new Map();
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const CODE_CHARS = 'BCDFGHJKLMNPQRSTVWXZ'; // без гласных: коды не складываются в слова
 const newCode = () => {
   for (;;) {
     let c = ''; for (let i = 0; i < 4; i++) c += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];

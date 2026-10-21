@@ -23,7 +23,7 @@ export function hydrate(s) { return rebuild(JSON.parse(JSON.stringify(s))); }
 
 export const cur = (g) => g.players[g.turn];
 
-function log(g, t) { g.log.unshift(t); if (g.log.length > 40) g.log.pop(); }
+function log(g, t, p = -1) { g.log.unshift({ t, p, n: g.turns + 1 }); if (g.log.length > 40) g.log.pop(); }
 function fx(g, type, data = {}) { g.fx.push({ seq: ++g.fxSeq, type, ...data }); if (g.fx.length > 24) g.fx.shift(); }
 
 export function newGame(seats, opts = {}, rng = Math.random) {
@@ -31,7 +31,7 @@ export function newGame(seats, opts = {}, rng = Math.random) {
   const stock = n === 2 ? 10 : n === 3 ? 8 : 6;
   const g = {
     id: Date.now().toString(36) + Math.floor(rng() * 1e6).toString(36),
-    n, turn: 0, phase: 'roll', roll: null, over: false, winner: null, turns: 0,
+    t0: Date.now(), t1: null, n, turn: 0, phase: 'roll', roll: null, over: false, winner: null, turns: 0,
     walls: [], bonus: {}, log: [], fx: [], fxSeq: 0,
     players: seats.map((s, i) => ({
       i, side: order[i], name: s.name, bot: !!s.bot, color: COLORS[i],
@@ -40,7 +40,7 @@ export function newGame(seats, opts = {}, rng = Math.random) {
   };
   rebuild(g);
   if (opts.bonus !== false) placeBonuses(g, rng);
-  log(g, `Старт! Первым ходит ${cur(g).name}`);
+  log(g, `Старт! Первым ходит ${cur(g).name}`, 0);
   return g;
 }
 
@@ -124,7 +124,7 @@ export function endTurn(g) {
   for (let k = 0; k < g.n; k++) {
     g.turn = (g.turn + 1) % g.n;
     const p = cur(g);
-    if (p.skip > 0) { p.skip--; log(g, `${p.name} пропускает ход ❄️`); fx(g, 'skip', { p: p.i, why: 'freeze' }); continue; }
+    if (p.skip > 0) { p.skip--; log(g, `${p.name} пропускает ход`, p.i); fx(g, 'skip', { p: p.i, why: 'freeze' }); continue; }
     break;
   }
 }
@@ -133,9 +133,9 @@ export function doRoll(g, rng = Math.random) {
   if (g.over || g.phase !== 'roll') return { ok: false, err: 'Сейчас нельзя бросать' };
   const p = cur(g), r = 1 + Math.floor(rng() * 6);
   g.roll = r; g.phase = 'act';
-  log(g, `${p.name} бросает ${r}`); fx(g, 'roll', { p: p.i, r });
+  log(g, `${p.name} выбросил ${r}`, p.i); fx(g, 'roll', { p: p.i, r });
   if (!options(g).any) {
-    log(g, `${p.name}: ходов нет, пропуск`); fx(g, 'skip', { p: p.i, why: 'stuck' });
+    log(g, `${p.name}: ходов нет, пропуск`, p.i); fx(g, 'skip', { p: p.i, why: 'stuck' });
     endTurn(g);
   }
   return { ok: true };
@@ -151,17 +151,17 @@ export function act(g, a) {
       const steps = reach(g, p, maxSteps(g.roll)).get(key(a.x, a.y));
       if (!steps) return bad('Туда не дойти');
       const from = [p.x, p.y]; p.x = a.x; p.y = a.y;
-      log(g, `${p.name} идёт на ${steps} кл.`);
+      log(g, `${p.name} прошёл ${steps} кл.`, p.i);
       fx(g, 'move', { p: p.i, from, to: [p.x, p.y], steps });
       if (SIDES[p.side].goal(p.x, p.y)) {
-        g.over = true; g.winner = p.i; g.phase = 'over';
-        log(g, `🏆 ${p.name} побеждает!`); fx(g, 'win', { p: p.i });
+        g.over = true; g.winner = p.i; g.phase = 'over'; g.t1 = Date.now();
+        log(g, `${p.name} побеждает`, p.i); fx(g, 'win', { p: p.i });
         return { ok: true };
       }
       const bk = key(p.x, p.y), t = g.bonus[bk]; let extra = false;
       if (t) {
         delete g.bonus[bk];
-        log(g, `${p.name}: ${BONUS[t]}`); fx(g, 'bonus', { p: p.i, type: t, at: [p.x, p.y] });
+        log(g, `${p.name} взял «${BONUS[t]}»`, p.i); fx(g, 'bonus', { p: p.i, type: t, at: [p.x, p.y] });
         if (t === 'wall') p.walls += 2;
         if (t === 'again') extra = true;
         if (t === 'freeze') g.players[(g.turn + 1) % g.n].skip++;
@@ -175,7 +175,7 @@ export function act(g, a) {
       if (!lg.ok) return bad(lg.why);
       (a.o === 'h' ? g.H : g.V).add(key(a.x, a.y));
       g.walls.push({ o: a.o, x: a.x, y: a.y, owner: p.i }); p.walls--;
-      log(g, `${p.name} ставит стену`); fx(g, 'wall', { p: p.i, o: a.o, x: a.x, y: a.y });
+      log(g, `${p.name} поставил стену`, p.i); fx(g, 'wall', { p: p.i, o: a.o, x: a.x, y: a.y });
       endTurn(g); return { ok: true };
     }
     case 'break': {
@@ -183,7 +183,7 @@ export function act(g, a) {
       if (g.roll !== 6) return bad('Ломать стены можно только на шестёрке');
       if (!w) return bad('Такой стены нет');
       (w.o === 'h' ? g.H : g.V).delete(key(w.x, w.y)); g.walls.splice(a.i, 1);
-      log(g, `🔨 ${p.name} ломает стену`); fx(g, 'break', { p: p.i, o: w.o, x: w.x, y: w.y });
+      log(g, `${p.name} сломал стену`, p.i); fx(g, 'break', { p: p.i, o: w.o, x: w.x, y: w.y });
       endTurn(g); return { ok: true };
     }
     case 'pass':

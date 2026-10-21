@@ -92,7 +92,7 @@ export class Room {
   }
 
   emote(idx, e) {
-    if (idx < 0 || !['😀', '😎', '😡', '😭', '👍', '🔥'].includes(e)) return;
+    if (idx < 0 || !['👍', '👏', '😮', '😂', '🤔', '😤'].includes(e)) return;
     this.onEmote(idx, e);
   }
 
