@@ -9,6 +9,7 @@ import { Room } from './public/js/room.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0'; // на сервере за прокси: HOST=127.0.0.1
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.json': 'application/json', '.ico': 'image/x-icon',
@@ -121,7 +122,7 @@ setInterval(() => {
   for (const [code, e] of rooms) if (!e.room.hasConnected() && Date.now() - e.room.lastActive > 5 * 60_000) { e.room.destroy(); rooms.delete(code); }
 }, 15_000);
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`WALL DUEL на http://localhost:${PORT}`);
   for (const list of Object.values(os.networkInterfaces())) for (const i of list || [])
     if (i.family === 'IPv4' && !i.internal) console.log(`   в локальной сети: http://${i.address}:${PORT}`);
