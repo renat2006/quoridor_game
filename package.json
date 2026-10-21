@@ -1,7 +1,7 @@
 {
   "name": "quoridor_game",
   "version": "1.0.0",
-  "description": "WALL DUEL: кубик, стены и лабиринт. Онлайн-мультиплеер на 2–4 игрока",
+  "description": "WALL DUEL: тактический лабиринт со стенами, картами и ролями. Онлайн-мультиплеер на 2–4 игрока",
   "type": "module",
   "main": "server.js",
   "scripts": {

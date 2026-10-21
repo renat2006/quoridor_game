@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { server } from '../server.js';
 import { botAct, hydrate } from '../public/js/engine.js';
+
+// тесты поднимают сервер на свободном порту, чтобы не мешать запущенной игре
+process.env.PORT = '0';
+const { server } = await import('../server.js');
 
 await new Promise((r) => (server.listening ? r() : server.once('listening', r)));
 const port = server.address().port;

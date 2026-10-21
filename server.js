@@ -8,7 +8,7 @@ import { WebSocketServer } from 'ws';
 import { Room } from './public/js/room.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0'; // на сервере за прокси: HOST=127.0.0.1
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -123,8 +123,9 @@ setInterval(() => {
 }, 15_000);
 
 server.listen(PORT, HOST, () => {
-  console.log(`WALL DUEL на http://localhost:${PORT}`);
+  const port = server.address().port;
+  console.log(`WALL DUEL на http://localhost:${port}`);
   for (const list of Object.values(os.networkInterfaces())) for (const i of list || [])
-    if (i.family === 'IPv4' && !i.internal) console.log(`   в локальной сети: http://${i.address}:${PORT}`);
+    if (i.family === 'IPv4' && !i.internal) console.log(`   в локальной сети: http://${i.address}:${port}`);
 });
 export { server, rooms };

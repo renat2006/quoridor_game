@@ -9,21 +9,74 @@
 
 Дизайн, источники идей и проверка по четырём проверкам ядра — в `docs/game-design.md`.
 
-## Запуск
+## Быстрый старт
+
+Нужен Node.js 18 или новее (проверить: `node -v`).
 
 ```bash
-npm install
-npm start          # http://localhost:3000
-npm test           # тесты движка и сервера
+git clone https://github.com/renat2006/quoridor_game.git
+cd quoridor_game
+npm ci
+npm start
 ```
 
-Друзья в одной сети открывают адрес, который сервер печатает при старте. Для игры через интернет разверните сервер на любом
-Node-хостинге (нужна поддержка WebSocket) или пробросьте порт, например через `cloudflared tunnel --url http://localhost:3000`.
+Откройте http://localhost:3000. Сервер печатает и адрес в локальной сети: по нему к вашей комнате
+подключаются друзья с телефонов и ноутбуков в том же Wi‑Fi. Игра с ботами и вдвоём на одном экране
+(«Играть здесь») работает прямо в браузере, без комнат.
 
-## Деплой
+| Команда | Что делает |
+| --- | --- |
+| `npm start` | сервер игры |
+| `npm test` | тесты движка и сервера (поднимают сервер на свободном порту) |
+| `npm run bench [партий] [поле]` | турнир ботов: сила уровней и баланс ролей |
 
-На сервере игра запускается как systemd-сервис за обратным прокси (Caddy), который даёт HTTPS
-и пробрасывает WebSocket: `HOST=127.0.0.1 PORT=3050 node server.js`, в Caddy — `reverse_proxy 127.0.0.1:3050`.
+Настройки через переменные окружения:
+
+| Переменная | По умолчанию | Зачем |
+| --- | --- | --- |
+| `PORT` | `3000` | порт HTTP и WebSocket |
+| `HOST` | `0.0.0.0` | адрес; за обратным прокси ставьте `127.0.0.1` |
+
+Например: `PORT=8080 npm start`.
+
+### Через Docker
+
+```bash
+docker build -t wallduel .
+docker run -d --name wallduel -p 3000:3000 --restart unless-stopped wallduel
+```
+
+### Сыграть с друзьями через интернет без сервера
+
+Пробросьте локальный порт туннелем, например
+`cloudflared tunnel --url http://localhost:3000` или `ngrok http 3000`, и отправьте друзьям выданную ссылку.
+
+## Деплой на свой сервер
+
+Игре нужен один процесс Node.js и прокси с поддержкой WebSocket (путь `/ws`). Готовые конфиги лежат в `deploy/`.
+
+```bash
+# на сервере (Ubuntu/Debian), Node.js 18+ и Caddy уже установлены
+sudo useradd --system --home /opt/wallduel --shell /usr/sbin/nologin wallduel
+sudo git clone https://github.com/renat2006/quoridor_game.git /opt/wallduel
+sudo chown -R wallduel:wallduel /opt/wallduel
+sudo -u wallduel npm ci --omit=dev --prefix /opt/wallduel
+
+sudo cp /opt/wallduel/deploy/wallduel.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now wallduel
+```
+
+Добавьте в `/etc/caddy/Caddyfile` блок из `deploy/Caddyfile` со своим доменом (A-запись домена должна указывать
+на сервер) и выполните `sudo systemctl reload caddy`. Caddy сам выпустит HTTPS-сертификат.
+Для nginx нужен `proxy_pass http://127.0.0.1:3050;` с заголовками `Upgrade` и `Connection "upgrade"`.
+
+Обновление:
+
+```bash
+sudo -u wallduel git -C /opt/wallduel pull --ff-only && sudo systemctl restart wallduel
+```
+
+Состояние комнат хранится в памяти: после перезапуска идущие онлайн-партии пропадают, база данных не нужна.
 
 ## Боты и баланс
 
@@ -45,6 +98,8 @@ Node-хостинге (нужна поддержка WebSocket) или проб�
 | `public/js/ui.js`, `fx.js` | экраны и ввод, звук |
 | `public/js/art.js` | SVG-графика: иконки, фишки, поле, стены |
 | `docs/design-brief.md` | бриф для редизайна |
+| `deploy/` | systemd-сервис и блок Caddy для своего сервера |
+| `Dockerfile` | образ для запуска в Docker |
 
 ## Дизайн
 

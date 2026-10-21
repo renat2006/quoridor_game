@@ -1,0 +1,25 @@
+# systemd-сервис игры: /etc/systemd/system/wallduel.service
+# Код лежит в /opt/wallduel, запускается от отдельного пользователя wallduel и слушает только localhost —
+# наружу его выводит обратный прокси (см. Caddyfile).
+[Unit]
+Description=WALL DUEL
+After=network.target
+
+[Service]
+User=wallduel
+Group=wallduel
+WorkingDirectory=/opt/wallduel
+Environment=HOST=127.0.0.1
+Environment=PORT=3050
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/wallduel/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

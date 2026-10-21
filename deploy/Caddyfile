@@ -1,0 +1,5 @@
+# Блок для /etc/caddy/Caddyfile: Caddy сам получит HTTPS-сертификат и пробросит WebSocket (/ws).
+game.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3050
+}
