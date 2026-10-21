@@ -227,12 +227,12 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 .acts button:disabled{border:var(--bw) dashed var(--line-2);background:transparent;color:var(--muted);box-shadow:none}
 .hand{display:flex;flex-wrap:wrap;gap:6px}
 .hand .note{margin:0;font-size:12px}
-.card{height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 8px;border-radius:999px;border:var(--bw) solid var(--ink);background:var(--bg);font-size:13px;transition:background .12s,transform .08s}
-.card b{font-weight:600;white-space:nowrap}
-.card:hover:not(:disabled){background:var(--sunk);transform:translateY(-1px)}
-.card.sel{background:var(--ink);color:var(--on-ink)}
-.card:disabled{border-color:var(--line-2);color:var(--muted);background:transparent}
-.hand.used .card:not(.sel){opacity:.5}
+.hcard{height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 8px;border-radius:999px;border:var(--bw) solid var(--ink);background:var(--bg);font-size:13px;transition:background .12s,transform .08s}
+.hcard b{font-weight:600;white-space:nowrap}
+.hcard:hover:not(:disabled){background:var(--sunk);transform:translateY(-1px)}
+.hcard.sel{background:var(--ink);color:var(--on-ink)}
+.hcard:disabled{border-color:var(--line-2);color:var(--muted);background:transparent}
+.hand.used .hcard:not(.sel){opacity:.5}
 
 .plist{margin-top:8px;display:flex;flex-direction:column;gap:4px}
 .prow{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;column-gap:10px;row-gap:5px;align-items:center;padding:8px 10px;border-radius:var(--r-sm);border:var(--bw) solid transparent}
@@ -385,7 +385,7 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
   .acts small{display:none}
   .hand{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
   .hand::-webkit-scrollbar{display:none}
-  .card{flex:none;height:34px}
+  .hcard{flex:none;height:34px}
   .extra{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:72dvh;overflow:auto;padding:16px 16px calc(20px + env(safe-area-inset-bottom));background:var(--surface);border-top:var(--bw) solid var(--ink);border-radius:18px 18px 0 0;transform:translateY(105%);transition:transform .3s var(--ease)}
   body.sheet-open .extra{transform:none}
   .sheet-h{display:flex;align-items:center;justify-content:space-between;font-size:17px}

@@ -82,7 +82,8 @@ function onRoom(m) {
     if (g.over) showWin(g.winner);
   } else {
     const evs = ng.fx.filter((e) => e.seq > seen); g = ng; seen = ng.fxSeq;
-    evs.forEach(playFx);
+    // сбой одного эффекта не должен останавливать отрисовку партии
+    evs.forEach((ev) => { try { playFx(ev); } catch (err) { console.error('эффект', ev, err); } });
   }
   renderGame();
 }
@@ -255,7 +256,7 @@ function playFx(e) {
       if (e.card === 'demolish') ghost(e.o, e.x, e.y, e.p);
       if (e.p !== view.you || isLocal) toast(`${pl.name} играет «${E.CARDS[e.card].name}»`);
       break;
-    case 'bonus': sfx.play('bonus'); toast(`${pl.name}: ${E.BONUS[e.type]}`); break;
+    case 'bonus': sfx.play('bonus'); toast(`${pl.name}: ${E.BONUS[e.bonus]}`); break;
     case 'frozen': sfx.play('freeze'); toast(`${pl.name} заморожен: в этот ход 1 ОД`); break;
     case 'win': sfx.play('win'); fillGoal(e.p); setTimeout(() => showWin(e.p), 1300); break;
   }
@@ -368,7 +369,7 @@ function renderGame() {
   // рука: свои карты видны всегда, чужие — только количество
   const owner = view.you >= 0 ? g.players[view.you] : null, hand = owner ? owner.hand : [];
   const canCard = myTurn && !pending && g.t.cardsPlayed < cardLimit(p);
-  $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="card${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}" aria-label="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}">
+  $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="hcard${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}" aria-label="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}">
       ${A.icon(A.CARD_ICON[c], 18)}<b>${E.CARDS[c].name}</b></button>`).join('')
     : `<p class="note">${owner ? 'Карт нет — новая придёт в начале хода' : 'Карты видны только игрокам'}</p>`;
   $('#hand').classList.toggle('used', !!(myTurn && g.t.cardsPlayed >= cardLimit(p)));

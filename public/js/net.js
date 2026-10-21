@@ -37,7 +37,8 @@ export class LocalNet {
   emit() {
     const r = this.room; if (!r) return;
     const g = r.game, you = g && r.phase === 'playing' && !r.seats[g.turn].bot ? g.turn : (g && r.phase === 'over' ? g.winner : -1);
-    this.onmsg({ t: 'room', ...r.view(you), local: true, host: 0 });
+    // ошибка в интерфейсе не должна прерывать ход ботов внутри комнаты
+    try { this.onmsg({ t: 'room', ...r.view(you), local: true, host: 0 }); } catch (err) { console.error(err); }
   }
   setup(seats, opts) {
     this.seats = seats; this.opts = opts;

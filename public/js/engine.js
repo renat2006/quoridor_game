@@ -64,7 +64,8 @@ export const cur = (g) => g.players[g.turn];
 const shuffle = (a, rng) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 function log(g, t, p = -1) { if (g.sim) return; g.log.unshift({ t, p, n: g.turns + 1 }); if (g.log.length > 40) g.log.pop(); }
-function fx(g, type, data = {}) { if (g.sim) return; g.fx.push({ seq: ++g.fxSeq, type, ...data }); if (g.fx.length > 24) g.fx.shift(); }
+// тип события ставится последним, чтобы поле type в данных его не перетёрло
+function fx(g, type, data = {}) { if (g.sim) return; g.fx.push({ ...data, seq: ++g.fxSeq, type }); if (g.fx.length > 24) g.fx.shift(); }
 
 export function newGame(seats, opts = {}, rng = Math.random) {
   const n = seats.length, order = ORDER[n], size = SIZES.includes(opts.size) ? opts.size : 9;
@@ -259,7 +260,7 @@ export function act(g, a, rng = Math.random) {
         if (t === 'wall') p.walls += 2;
         if (t === 'card') draw(g, p, rng);
         if (t === 'energy') g.ap += 1;
-        log(g, `${p.name} взял «${BONUS[t]}»`, p.i); fx(g, 'bonus', { p: p.i, type: t, at: [p.x, p.y] });
+        log(g, `${p.name} взял «${BONUS[t]}»`, p.i); fx(g, 'bonus', { p: p.i, bonus: t, at: [p.x, p.y] });
       }
       break;
     }

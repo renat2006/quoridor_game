@@ -140,5 +140,7 @@ for (const size of SIZES) {
 {
   const g = plain(); g.bonus['4,7'] = 'energy';
   act(g, { t: 'move', x: 4, y: 7 }); assert.equal(g.ap, 2, '+1 ОД');
+  const ev = g.fx[g.fx.length - 1];
+  assert.equal(ev.type, 'bonus', 'тип события не перетирается'); assert.equal(ev.bonus, 'energy');
 }
 console.log('engine: OK');
