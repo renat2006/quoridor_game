@@ -214,6 +214,7 @@ function buildBoard() {
   $('#gCode').textContent = isLocal ? 'здесь' : view.code;
   $('#gRoom').disabled = isLocal;
   $('#chips').style.setProperty('--n', g.n);
+  $('#chips').classList.toggle('many', g.n > 2);
 }
 function drawDynamic() {
   const my = canAct(), p = E.cur(g);
@@ -309,17 +310,16 @@ function playerInfo(q) {
   const flag = q.frozen > 0 ? A.icon('freeze', 14) : q.bot ? A.icon('bot', 14) : off ? A.icon('offline', 14) : '';
   return { off, me, flag, cur: q.i === g.turn && !g.over, d: E.dist(g, q), pr: Math.round(progress(q) * 100) };
 }
-const roleTag = (q) => (q.role ? `<span class="role" title="${esc(E.ROLES[q.role].text)}">${A.icon(A.ROLE_ICON[q.role], 13)}${E.ROLES[q.role].name}</span>` : '');
 function renderGame() {
   const p = E.cur(g), myTurn = !g.over && view.you === g.turn;
   $('#gTurn').textContent = g.turns + 1;
 
   $('#players').innerHTML = g.players.map((q) => {
     const f = playerInfo(q);
-    return `<li class="prow${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}">${A.shape(q.i, 28)}
-      <div class="nm"><span>${esc(q.name)}</span>${f.me ? '<i>вы</i>' : ''}${f.flag}</div>
-      <span class="wl"><span title="Стен в запасе">${A.icon('wall', 15)}${q.walls}</span><span title="Карт в руке">${A.icon('cards', 15)}${q.hand.length}</span></span>
-      <div class="prog">${roleTag(q)}<div class="bar-t"><b style="width:${f.pr}%"></b></div><span title="Клеток до цели">${A.goalArrow(q.side, 12)}${f.d}</span></div></li>`;
+    return `<li class="prow${f.cur ? ' cur' : ''}${f.off ? ' off' : ''}" data-i="${q.i}" style="--c:${A.pv(q.i)}">${A.shape(q.i, 22)}
+      <div class="nm"><span>${esc(q.name)}</span>${f.me ? '<i>вы</i>' : ''}${q.role ? `<em title="${esc(E.ROLES[q.role].name + ': ' + E.ROLES[q.role].text)}">${A.icon(A.ROLE_ICON[q.role], 14)}</em>` : ''}${f.flag}</div>
+      <span class="wl"><span title="Стен в запасе">${A.icon('wall', 14)}${q.walls}</span><span title="Карт в руке">${A.icon('cards', 14)}${q.hand.length}</span><span title="Клеток до цели" class="d">${A.goalArrow(q.side, 12)}${f.d}</span></span>
+      <div class="bar-t"><b style="width:${f.pr}%"></b></div></li>`;
   }).join('');
   $('#chips').innerHTML = g.players.map((q) => {
     const f = playerInfo(q);
@@ -333,13 +333,15 @@ function renderGame() {
   if (myTurn && mode !== 'target' && !((mode === 'move' && o.move) || (mode === 'wall' && o.wall) || (mode === 'role' && (o.brk || o.rot))))
     mode = o.move ? 'move' : o.wall ? 'wall' : o.brk || o.rot ? 'role' : 'none';
 
-  $('#tcWho').innerHTML = `${A.shape(p.i, 24)}<span>${esc(p.name)}</span>${myTurn && !isLocal ? '<i>· вы</i>' : ''}`;
+  const rs0 = p.role ? roleState(p) : null;
+  $('#tcWho').innerHTML = `${A.shape(p.i, 22)}<span class="nm">${esc(p.name)}</span>${myTurn && !isLocal ? '<i>вы</i>' : ''}` +
+    (p.role ? `<span class="role${rs0.ready ? ' ok' : ''}" title="${esc(E.ROLES[p.role].name + ': ' + E.ROLES[p.role].text + ' — ' + rs0.text)}">${A.icon(A.ROLE_ICON[p.role], 13)}${E.ROLES[p.role].name}</span>` : '');
   const extras = [g.t.freeStep && 'бесплатный шаг', g.t.masonFree && 'бесплатная стена', g.t.freeWalls && 'стена картой', E.crossBudget(g, p) && 'можно сквозь стену'].filter(Boolean);
   let st;
   if (g.over) st = 'Партия окончена';
   else if (!myTurn) st = p.bot || isLocal ? 'Думает…' : 'Ходит…';
   else if (mode === 'target') st = `Выберите стену для «${E.CARDS[p.hand[pendingCard]].name}»`;
-  else st = `Осталось <b>${g.ap}</b> ОД${extras.length ? ' · ' + extras.join(' · ') : ''}`;
+  else st = `<b>${g.ap}</b> ОД${extras.length ? ' · ' + extras.join(' · ') : ''}`;
   $('#tcStatus').innerHTML = st;
 
   // очки действия: полные кружки — ОД, со значком — бесплатные действия этого хода
@@ -350,13 +352,11 @@ function renderGame() {
   $('#ap').innerHTML = pips.join(''); $('#ap').setAttribute('aria-label', `Очки действия: ${g.ap}`);
   $('#endBtn').disabled = !myTurn || pending;
 
-  const rs = p.role ? roleState(p) : null;
-  $('#roleBox').innerHTML = p.role ? `${A.icon(A.ROLE_ICON[p.role], 18)}<div><b>${E.ROLES[p.role].name}</b><span>${esc(E.ROLES[p.role].text)}</span></div><em class="${rs.ready ? 'ok' : ''}">${rs.text}</em>` : '';
-  $('#roleBox').classList.toggle('hidden', !p.role);
+  const rs = rs0;
   const activeRole = ACTIVE_ROLE[p.role];
   $('#roleBtn').classList.toggle('hidden', !activeRole);
   $('#acts').classList.toggle('two', !activeRole);
-  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 24); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; }
+  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 20); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; }
   $('#aMove').textContent = `до ${E.stepBudget(g)}`;
   $('#aWall').textContent = `${p.walls} шт.`;
   $$('#acts button').forEach((b) => {
@@ -368,10 +368,10 @@ function renderGame() {
   // рука: свои карты видны всегда, чужие — только количество
   const owner = view.you >= 0 ? g.players[view.you] : null, hand = owner ? owner.hand : [];
   const canCard = myTurn && !pending && g.t.cardsPlayed < cardLimit(p);
-  $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="card${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].text)}">
-      <span class="ci">${A.icon(A.CARD_ICON[c], 20)}</span><b>${E.CARDS[c].name}</b><small>${esc(E.CARDS[c].text)}</small></button>`).join('')
+  $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="card${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}" aria-label="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}">
+      ${A.icon(A.CARD_ICON[c], 18)}<b>${E.CARDS[c].name}</b></button>`).join('')
     : `<p class="note">${owner ? 'Карт нет — новая придёт в начале хода' : 'Карты видны только игрокам'}</p>`;
-  $('#handNote').textContent = owner ? `${hand.length}/${owner.role === 'gambler' ? 4 : 3}${myTurn && g.t.cardsPlayed >= cardLimit(p) ? ' · уже сыграна' : ''}` : '';
+  $('#hand').classList.toggle('used', !!(myTurn && g.t.cardsPlayed >= cardLimit(p)));
 
   const coarse = matchMedia('(pointer:coarse)').matches;
   let hint, ic = 'move';
@@ -380,13 +380,13 @@ function renderGame() {
   else if (mode === 'move') hint = 'Выберите клетку: цифра — сколько шагов. Можно шагнуть и потом поставить стену.';
   else if (mode === 'wall') { hint = coarse ? 'Коснитесь линии между клетками, затем «Поставить».' : 'Наведите на точку между клетками и кликните. <kbd>R</kbd> или правый клик — повернуть.'; ic = 'wall'; }
   else if (mode === 'role') { hint = p.role === 'sapper' ? 'Выберите стену, которую сломать.' : 'Выберите стену, которую повернуть.'; ic = A.ROLE_ICON[p.role]; }
-  else if (mode === 'target') { hint = 'Выберите стену на поле. <kbd>Esc</kbd> — отмена.'; ic = A.CARD_ICON[p.hand[pendingCard]]; }
+  else if (mode === 'target') { hint = `«${E.CARDS[p.hand[pendingCard]].name}»: выберите стену на поле. <kbd>Esc</kbd> — отмена.`; ic = A.CARD_ICON[p.hand[pendingCard]]; }
   else { hint = 'Действий не осталось — завершите ход.'; ic = 'check'; }
   $('#hint').innerHTML = `${A.icon(ic, 18)}<span>${hint}</span>`;
   const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? 'Коснитесь линии между клетками' : mode === 'role' || mode === 'target' ? 'Коснитесь стены на поле' : st;
   $('#mstatus').innerHTML = `${A.shape(p.i, 16)}<b>${esc(p.name)}</b><span>· ${mtxt}</span>`;
 
-  $('#log').innerHTML = g.log.slice(0, 10).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
+  $('#log').innerHTML = g.log.slice(0, 6).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
   $('#emotes').classList.toggle('hidden', isLocal);
   $('#confirm').classList.toggle('hidden', !(canAct() && mode === 'wall' && preview && lastPtr === 'touch'));
   drawDynamic();

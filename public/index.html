@@ -174,20 +174,18 @@
     </section>
     <aside class="panel" aria-label="Ход">
       <div class="dock">
-        <div class="turncard" id="turncard">
-          <div class="tc-body">
-            <div class="tc-who" id="tcWho"></div>
-            <div class="tc-status" id="tcStatus"></div>
-          </div>
-          <div class="aprow"><div class="ap" id="ap" role="img" aria-label="Очки действия"></div><button class="btn end" id="endBtn">Завершить ход</button></div>
-          <div class="rolebox" id="roleBox"></div>
+        <div class="tb-who" id="tcWho"></div>
+        <div class="turnbar">
+          <div class="ap" id="ap" role="img" aria-label="Очки действия"></div>
+          <div class="tc-status" id="tcStatus"></div>
+          <button class="btn end" id="endBtn" title="Завершить ход (Enter)">Завершить</button>
         </div>
         <div class="acts" id="acts" role="group" aria-label="Действие">
-          <button data-m="move" aria-pressed="false"><i data-icon="move" data-size="24"></i><b>Идти</b><small id="aMove"></small></button>
-          <button data-m="wall" aria-pressed="false"><i data-icon="wall" data-size="24"></i><b>Стена</b><small id="aWall"></small></button>
+          <button data-m="move" aria-pressed="false"><i data-icon="move"></i><b>Идти</b><small id="aMove"></small></button>
+          <button data-m="wall" aria-pressed="false"><i data-icon="wall"></i><b>Стена</b><small id="aWall"></small></button>
           <button data-m="role" aria-pressed="false" id="roleBtn"><span id="roleIc"></span><b id="roleName"></b><small id="aRole"></small></button>
         </div>
-        <div class="handwrap"><div class="eyebrow">Карты <span class="note" id="handNote"></span></div><div class="hand" id="hand" aria-label="Ваши карты"></div></div>
+        <div class="hand" id="hand" aria-label="Ваши карты"></div>
       </div>
       <div class="block pblock">
         <div class="sec-h"><span class="eyebrow">Игроки</span><span class="note">ход <b class="mono" id="gTurn"></b></span></div>
