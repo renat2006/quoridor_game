@@ -203,13 +203,18 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 /* панель */
 .panel{display:flex;flex-direction:column;gap:20px;position:sticky;top:16px}
 .dock{display:flex;flex-direction:column;gap:12px}
-.turncard{display:grid;grid-template-columns:auto 1fr;grid-template-areas:"die body" "roll roll";gap:16px 18px;align-items:center;padding:18px;border-radius:var(--r);background:var(--surface);border:var(--bw) solid var(--ink);box-shadow:var(--sh-lg)}
-.die-btn{grid-area:die;padding:0;border:0;background:none;border-radius:16px}
-.die{position:relative;width:72px;height:72px;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:12px;border-radius:14px;background:var(--surface);border:var(--bw) solid var(--ink);box-shadow:0 5px 0 var(--hard);transform:rotate(-5deg)}
+.turncard{display:grid;grid-template-columns:1fr;grid-template-areas:"body" "die" "roll";gap:16px 18px;align-items:center;padding:18px;border-radius:var(--r);background:var(--surface);border:var(--bw) solid var(--ink);box-shadow:var(--sh-lg)}
+.dice{grid-area:die;display:flex;gap:10px}
+.die-btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0;border:0;background:none;border-radius:14px;transition:opacity .2s}
+.die-btn.dim{opacity:.45}
+.die-btn:not(:disabled):hover{opacity:.8}
+.die-btn.sel .die{border-width:2.5px;box-shadow:0 5px 0 var(--hard);transform:rotate(-4deg) translateY(-2px)}
+.die-btn.dim .die{box-shadow:0 2px 0 var(--hard);transform:rotate(3deg)}
+.dlab{font-size:11px;font-weight:600;color:var(--muted);max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.die{position:relative;width:64px;height:64px;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:12px;border-radius:14px;background:var(--surface);border:var(--bw) solid var(--ink);box-shadow:0 5px 0 var(--hard);transform:rotate(-5deg)}
 .die i{margin:auto;width:11px;height:11px;border-radius:50%;background:var(--ink);opacity:0}
 .die i.on{opacity:1}
 .die.idle{background:var(--sunk)}
-.die-btn:not(:disabled) .die{animation:nudge 1.6s var(--ease) infinite}
 @keyframes nudge{0%,70%,100%{transform:rotate(-5deg)}80%{transform:rotate(4deg) translateY(-3px)}90%{transform:rotate(-2deg)}}
 .tc-body{grid-area:body;min-width:0}
 .tc-who{display:flex;align-items:center;gap:10px;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-.01em}
@@ -366,8 +371,9 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
   .dock{position:fixed;left:0;right:0;bottom:0;z-index:40;height:calc(var(--dock-h) + env(safe-area-inset-bottom));display:grid;grid-template-columns:auto 1fr;grid-template-areas:"die main";align-items:center;gap:10px;padding:0 12px env(safe-area-inset-bottom);background:var(--bg);border-top:var(--bw) solid var(--ink)}
   .turncard{display:contents}
   .tc-body{display:none}
-  .die-btn{grid-area:die}
-  .die{width:52px;height:52px;padding:8px;border-radius:11px;box-shadow:0 4px 0 var(--hard)}.die i{width:8px;height:8px}
+  .dice{gap:6px}.dlab{display:none}
+  .die{width:42px;height:42px;padding:6px;border-radius:9px;box-shadow:0 3px 0 var(--hard)}.die i{width:6px;height:6px}
+  .die-btn.sel .die{box-shadow:0 3px 0 var(--hard)}
   .acts{grid-area:main;gap:8px}
   .roll{grid-area:main;width:100%;height:52px;font-size:16px}
   .dock.can-roll .acts{visibility:hidden}

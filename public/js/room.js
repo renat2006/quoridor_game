@@ -1,6 +1,6 @@
 // Логика комнаты: места, лобби, ход партии, боты. Не зависит от транспорта,
 // поэтому одинаково работает на сервере (онлайн) и в браузере (локальная игра).
-import { newGame, doRoll, act, botAct, snapshot, cur, BOT_LEVELS } from './engine.js';
+import { newGame, doRoll, act, botAct, snapshot, cur, BOT_LEVELS, SIZES } from './engine.js';
 
 const MAX = 4;
 const clean = (s, n = 14) => String(s || '').replace(/[<>&"]/g, '').trim().slice(0, n);
@@ -10,7 +10,7 @@ export class Room {
     this.code = code; this.title = clean(title, 24) || 'Комната'; this.isPublic = !!isPublic;
     this.onUpdate = onUpdate; this.onEmote = onEmote;
     this.seats = []; this.host = -1; this.phase = 'lobby';
-    this.opts = { bonus: true, botLevel: 'normal' }; this.game = null; this.timer = null; this.lastActive = Date.now();
+    this.opts = { bonus: true, botLevel: 'normal', size: 9 }; this.game = null; this.timer = null; this.lastActive = Date.now();
   }
 
   idxOf(token) { return this.seats.findIndex((s) => s.token === token); }
@@ -59,6 +59,7 @@ export class Room {
     if (typeof o.bonus === 'boolean') this.opts.bonus = o.bonus;
     if (typeof o.isPublic === 'boolean') this.isPublic = o.isPublic;
     if (BOT_LEVELS.includes(o.botLevel)) this.opts.botLevel = o.botLevel;
+    if (SIZES.includes(o.size)) this.opts.size = o.size;
     this.touch();
   }
   start(by) {
@@ -77,11 +78,11 @@ export class Room {
   play(idx, m) {
     const g = this.game;
     if (this.phase !== 'playing' || !g || g.turn !== idx) return { ok: false, err: 'Сейчас не ваш ход' };
-    const ints = ['x', 'y', 'i'];
+    const ints = ['x', 'y', 'i', 'd'];
     for (const k of ints) if (k in m && !Number.isInteger(m[k])) return { ok: false, err: 'Некорректный ход' };
     let res;
     if (m.t === 'roll') res = doRoll(g);
-    else if (['move', 'wall', 'break'].includes(m.t)) res = act(g, m);
+    else if (['move', 'wall', 'break', 'select'].includes(m.t)) res = act(g, m);
     else res = { ok: false, err: 'Неизвестная команда' };
     if (res.ok) this.afterPlay();
     return res;

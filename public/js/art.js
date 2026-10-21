@@ -2,7 +2,8 @@
 // Всё — строки SVG; цвета берутся из CSS-переменных темы.
 import * as E from './engine.js';
 
-export const N = E.N, S = 56, GP = 10, PAD = 26, P = S + GP, VB = PAD * 2 + N * S + (N - 1) * GP; // 636
+export const S = 56, GP = 10, PAD = 26, P = S + GP;
+export const vbOf = (n) => PAD * 2 + n * S + (n - 1) * GP; // 9×9 → 636
 export const cx = (x) => PAD + x * P;
 export const cy = (y) => PAD + y * P;
 export const pv = (i) => `var(--p${i + 1})`;
@@ -78,8 +79,9 @@ export function installDefs() {
 
 /* Постоянный слой: лист, клетки и тонкие цветные кромки «домов». */
 export function boardBase(g) {
+  const n = g.size, VB = vbOf(n);
   let h = `<rect class="b-sheet" x="1" y="1" width="${VB - 2}" height="${VB - 2}" rx="18"/>`;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) h += `<rect class="b-cell" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>`;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) h += `<rect class="b-cell" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7"/>`;
   g.players.forEach((p) => {
     const t = 4, o = PAD / 2 - t / 2, s = 64, len = VB - 2 * s;
     const r = [[s, VB - o - t, len, t], [o, s, t, len], [s, o, len, t], [VB - o - t, s, t, len]][p.side];
@@ -92,8 +94,9 @@ export function boardBase(g) {
 export function goalLayer(g, i) {
   const p = g.players[i]; if (!p) return '';
   let h = '';
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++)
-    if (E.SIDES[p.side].goal(x, y)) h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" style="fill:var(--p${i + 1})" fill-opacity=".16"/>` +
+  const goal = E.goalOf(g.size, p.side);
+  for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++)
+    if (goal(x, y)) h += `<rect x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" style="fill:var(--p${i + 1})" fill-opacity=".16"/>` +
       `<g transform="translate(${cx(x) + S / 2} ${cy(y) + S / 2}) rotate(${p.side * 90})"><path d="M-6 3.5 0-2.5l6 6" class="b-chev"/></g>`;
   return h;
 }
@@ -134,9 +137,9 @@ export function wallLayer(g, { fromIndex = 1e9, breakable = false } = {}) {
 }
 
 /* Пазы для стен — точки на перекрёстках. */
-export function slotLayer() {
+export function slotLayer(n) {
   let h = '';
-  for (let y = 0; y < N - 1; y++) for (let x = 0; x < N - 1; x++) h += `<circle cx="${cx(x) + S + GP / 2}" cy="${cy(y) + S + GP / 2}" r="2.6"/>`;
+  for (let y = 0; y < n - 1; y++) for (let x = 0; x < n - 1; x++) h += `<circle cx="${cx(x) + S + GP / 2}" cy="${cy(y) + S + GP / 2}" r="2.6"/>`;
   return `<g class="wslots">${h}</g>`;
 }
 

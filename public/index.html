@@ -29,7 +29,7 @@
     <div class="hero-text">
       <div class="eyebrow">Лабиринт с кубиком · 2–4 игрока</div>
       <h1>Дойди первым.<br>Построй стену другому.</h1>
-      <p class="lead">Бросай кубик и выбирай: идти, поставить стену или сломать чужую. Путь до цели должен оставаться у всех.</p>
+      <p class="lead">Два кубика: одним ходишь, второй отдаёшь сопернику. Иди, ставь стены, ломай чужие — но путь до цели должен оставаться у всех.</p>
       <form class="stack" onsubmit="return false">
         <label class="lbl" for="name">Ваше имя</label>
         <input id="name" class="input" maxlength="14" placeholder="Как вас зовут" autocomplete="nickname">
@@ -101,8 +101,9 @@
       <div class="lbl gap-t">Сколько игроков</div>
       <div class="seg" id="segN" role="radiogroup" aria-label="Число игроков"></div>
       <div id="localSeats" class="lseats"></div>
+      <div class="opt"><div><b>Поле</b><span>Малое — быстрая партия, большое — долгая</span></div><div class="seg2" id="localSize" role="radiogroup"><button type="button" role="radio" data-l="7">7×7</button><button type="button" role="radio" data-l="9">9×9</button><button type="button" role="radio" data-l="11">11×11</button></div></div>
       <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, ещё бросок, заморозка</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="localBonus" aria-label="Бонус-клетки"><span></span></button></div>
-      <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="localLevel" role="radiogroup" aria-label="Уровень ботов"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button></div></div>
+      <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="localLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button><button type="button" role="radio" data-l="hard">Мастер</button></div></div>
       <div class="row-btns"><button type="button" class="btn ink grow" id="bLocalGo">Играть</button><button type="button" class="btn" data-go="home">Отмена</button></div>
     </form>
   </main>
@@ -124,9 +125,10 @@
         <button class="btn" id="lbCopy"><i data-icon="copy"></i>Код</button>
       </div>
       <div class="opts">
+        <div class="opt"><div><b>Поле</b><span>Малое — быстрая партия, большое — долгая</span></div><div class="seg2" id="optSize" role="radiogroup"><button type="button" role="radio" data-l="7">7×7</button><button type="button" role="radio" data-l="9">9×9</button><button type="button" role="radio" data-l="11">11×11</button></div><em id="optSizeTxt"></em></div>
         <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, ещё бросок, заморозка</span></div><button class="sw" role="switch" id="optBonus" aria-label="Бонус-клетки"><span></span></button><em id="optBonusTxt"></em></div>
         <div class="opt"><div><b>Видна в списке</b><span>Иначе войти можно только по коду</span></div><button class="sw" role="switch" id="optPublic" aria-label="Видна в списке"><span></span></button><em id="optPublicTxt"></em></div>
-        <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="optLevel" role="radiogroup" aria-label="Уровень ботов"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button></div><em id="optLevelTxt"></em></div>
+        <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="optLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button><button type="button" role="radio" data-l="hard">Мастер</button></div><em id="optLevelTxt"></em></div>
       </div>
     </section>
     <section class="lb-right">
@@ -171,12 +173,15 @@
     <aside class="panel" aria-label="Ход">
       <div class="dock">
         <div class="turncard" id="turncard">
-          <button class="die-btn" id="dieBtn" aria-label="Бросить кубик"><span class="die" id="die"></span></button>
+          <div class="dice" id="dice" role="radiogroup" aria-label="Кубики: каким ходить">
+            <button class="die-btn" data-d="0" role="radio"><span class="die"></span><small class="dlab"></small></button>
+            <button class="die-btn" data-d="1" role="radio"><span class="die"></span><small class="dlab"></small></button>
+          </div>
           <div class="tc-body">
             <div class="tc-who" id="tcWho"></div>
             <div class="tc-status" id="tcStatus"></div>
           </div>
-          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span>Бросить кубик</span></button>
+          <button class="btn ink roll" id="rollBtn"><i data-icon="dice"></i><span>Бросить</span></button>
         </div>
         <div class="acts" id="acts" role="group" aria-label="Действие">
           <button data-m="move" aria-pressed="false"><i data-icon="move" data-size="24"></i><b>Идти</b><small id="aMove"></small></button>
@@ -207,23 +212,24 @@
 <!-- ПРАВИЛА -->
 <div id="rules" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesT"><div class="card rules">
   <div class="modal-h"><h1 class="h2" id="rulesT">Правила</h1><button class="ibtn" data-close aria-label="Закрыть"><i data-icon="x"></i></button></div>
-  <section><h3>Цель</h3><p>Первым дойти до противоположного края поля. Ваш «дом» — край с вашей цветной кромкой: туда идут соперники.</p></section>
-  <section><h3>Ход</h3><p>Бросьте кубик и выберите одно действие:</p>
+  <section><h3>Цель</h3><p>Первым дойти до противоположного края поля. Ваш «дом» — край с вашей цветной кромкой: туда идут соперники. Поле бывает 7×7, 9×9 и 11×11.</p></section>
+  <section><h3>Кубики</h3><p>В начале хода у вас два кубика: левый передал предыдущий игрок, правый вы бросаете. Ходите одним из них — второй уйдёт следующему игроку. Взять себе сильный кубик значит отдать сопернику слабый, и наоборот.</p></section>
+  <section><h3>Ход</h3><p>Выбранным кубиком сделайте одно действие:</p>
     <div class="rcards">
-      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="28"></i></span><b>Идти</b><p>На 1–3 клетки: 1–2 → 1 шаг, 3–4 → 2, 5–6 → 3. Можно остановиться раньше. Сквозь стены и фишки нельзя.</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="28"></i></span><b>Стена</b><p>Длиной в 2 клетки. Запас: 10, 8 или 6 штук. Полностью закрывать чей-то путь нельзя.</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="28"></i></span><b>Сломать</b><p>Только на шестёрке: убирает любую стену с поля.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="28"></i></span><b>Идти</b><p>Кубик 1–3 — на 1 клетку, 4–6 — на 1 или 2. Через соседнюю фишку можно перепрыгнуть, а если за ней стена — обойти по диагонали.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="28"></i></span><b>Стена</b><p>Длиной в 2 клетки, запас зависит от поля. Полностью закрывать чей-то путь нельзя. Ставя стену, отдайте сопернику слабый кубик.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="28"></i></span><b>Сломать</b><p>Только шестёркой: убирает любую стену с поля.</p></div>
     </div>
   </section>
   <section><h3>Бонус-клетки</h3><p>Срабатывают, если остановиться на них, и исчезают.</p>
     <div class="rcards">
       <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="plusWall" data-size="28"></i></span><b>+2 стены</b><p>к вашему запасу</p></div>
-      <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="again" data-size="28"></i></span><b>Ещё бросок</b><p>сразу ходите снова</p></div>
+      <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="again" data-size="28"></i></span><b>Ещё ход</b><p>сразу ходите снова</p></div>
       <div class="rc bonus-rc"><span class="rc-ic"><i data-icon="freeze" data-size="28"></i></span><b>Заморозка</b><p>следующий игрок пропускает ход</p></div>
     </div>
   </section>
   <section><h3>Онлайн</h3><p>Хост создаёт комнату, делится кодом или ссылкой и запускает игру. Можно добавить ботов. Если связь пропала, за вас походит бот, а при возврате вы продолжите с того же места.</p></section>
-  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками, <kbd>R</kbd> или правый клик поворачивают её. На телефоне касание показывает стену, а кнопка «Поставить» подтверждает. Клавиши: <kbd>Пробел</kbd> — бросок, <kbd>M</kbd> — идти, <kbd>W</kbd> — стена, <kbd>B</kbd> — сломать.</p></section>
+  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками, <kbd>R</kbd> или правый клик поворачивают её. На телефоне касание показывает стену, а кнопка «Поставить» подтверждает. Клавиши: <kbd>Пробел</kbd> — бросок, <kbd>1</kbd>/<kbd>2</kbd> — выбрать кубик, <kbd>M</kbd> — идти, <kbd>W</kbd> — стена, <kbd>B</kbd> — сломать.</p></section>
   <button class="btn ink wide" data-close>Понятно</button>
 </div></div>
 

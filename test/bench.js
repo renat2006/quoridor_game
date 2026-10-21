@@ -1,10 +1,10 @@
-// Турнир ботов: насколько уровни сильнее друг друга. Запуск: npm run bench [число партий]
+// Турнир ботов: насколько уровни сильнее друг друга. Запуск: npm run bench [число партий] [размер поля]
 import { newGame, doRoll, act, botAct } from '../public/js/engine.js';
 
-const GAMES = Number(process.argv[2]) || 60;
+const GAMES = Number(process.argv[2]) || 60, SIZE = Number(process.argv[3]) || 9;
 
 function play(levels) {
-  const g = newGame(levels.map((l, i) => ({ name: l + i, bot: true })));
+  const g = newGame(levels.map((l, i) => ({ name: l + i, bot: true })), { size: SIZE });
   let guard = 0, slow = 0;
   while (!g.over && guard++ < 4000) {
     doRoll(g);
@@ -31,3 +31,4 @@ function match(a, b) {
 }
 
 match('normal', 'easy');
+match('hard', 'normal');

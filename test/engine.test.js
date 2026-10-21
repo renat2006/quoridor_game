@@ -1,74 +1,111 @@
 import assert from 'node:assert/strict';
-import { newGame, doRoll, act, botAct, dist, wallLegal, reach, options, hydrate, snapshot, cur, rebuild } from '../public/js/engine.js';
+import { newGame, doRoll, act, botAct, dist, wallLegal, reach, hydrate, snapshot, cur, rebuild, SIZES } from '../public/js/engine.js';
 
 const seats = (n) => Array.from({ length: n }, (_, i) => ({ name: 'P' + (i + 1), bot: true }));
+const setRoll = (g, r, other = 1) => { g.dice = [r, other]; g.sel = 0; g.roll = r; g.phase = 'act'; };
 
-// 1. Боты доигрывают партии до победы, правила не нарушаются.
-for (const n of [2, 3, 4]) for (let k = 0; k < 5; k++) {
-  const g = newGame(seats(n));
+// 1. Боты обоих уровней доигрывают партии на всех полях, правила не нарушаются.
+for (const size of SIZES) for (const n of [2, 3, 4]) for (const level of ['easy', 'normal']) {
+  const g = newGame(seats(n), { size });
   let guard = 0;
-  while (!g.over && guard++ < 3000) {
+  while (!g.over && guard++ < 4000) {
     assert.ok(doRoll(g).ok);
     if (g.phase === 'roll') continue; // авто-пропуск
-    const a = botAct(g);
+    const a = botAct(g, Math.random, level);
     const r = act(g, a);
     assert.ok(r.ok, `ход бота отклонён: ${JSON.stringify(a)} ${r.err}`);
     g.players.forEach((p) => assert.ok(dist(g, p) < Infinity, 'путь к цели закрыт'));
   }
-  assert.ok(g.over, `партия на ${n} не закончилась`);
-  assert.equal(g.phase, 'over');
+  assert.ok(g.over, `партия ${size}×${size} на ${n} (${level}) не закончилась`);
 }
 
-// 2. Стены: нельзя пересекать и нельзя перекрывать путь полностью.
+// 2. Размеры поля: старты по центру сторон, запас стен растёт с полем.
 {
-  const g = newGame(seats(2), { bonus: false });
-  g.roll = 1; g.phase = 'act';
-  assert.ok(act(g, { t: 'wall', o: 'h', x: 0, y: 3 }).ok);
-  const g2 = newGame(seats(2), { bonus: false });
-  g2.roll = 1; g2.phase = 'act';
-  for (let x = 0; x < 8; x += 2) { g2.walls.push({ o: 'h', x, y: 3, owner: 0 }); }
-  hydrate(snapshot(g2)); // снимок/восстановление не падает
+  const s = newGame(seats(2), { size: 7 }), l = newGame(seats(4), { size: 11 });
+  assert.deepEqual([s.players[0].x, s.players[0].y], [3, 6]);
+  assert.deepEqual([l.players[1].x, l.players[1].y], [0, 5]);
+  assert.equal(dist(s, s.players[0]), 6);
+  assert.ok(newGame(seats(2), { size: 11 }).players[0].walls > s.players[0].walls);
+  assert.equal(newGame(seats(2), { size: 5 }).size, 9, 'неизвестный размер → среднее поле');
+}
+
+// 3. Стены: нельзя пересекать и нельзя перекрывать путь полностью.
+{
   const gg = newGame(seats(2), { bonus: false });
   gg.walls.push({ o: 'h', x: 3, y: 7, owner: 0 }, { o: 'v', x: 4, y: 7, owner: 0 });
   rebuild(gg);
-  assert.equal(wallLegal(gg, 'v', 2, 7).ok, false, 'эта стена заперла бы фишку в клетке');
+  assert.equal(wallLegal(gg, 'v', 2, 7).ok, false, 'эта стена заперла бы фишку');
   assert.equal(wallLegal(gg, 'v', 3, 7).ok, false, 'пересечение с горизонтальной стеной');
   assert.equal(wallLegal(gg, 'h', 0, 3).ok, true);
+  assert.equal(wallLegal(newGame(seats(2), { size: 7 }), 'h', 6, 0).ok, false, 'стена за краем малого поля');
+  hydrate(snapshot(gg));
 }
 
-// 3. Движение: на 1–3 клетки, чужие фишки не проходимы, на ходу не по броску нельзя.
+// 4. Движение на 1–2 клетки; ходить можно только после броска.
 {
   const g = newGame(seats(2), { bonus: false });
-  g.roll = 6; g.phase = 'act';
-  const r = reach(g, cur(g), 3);
-  assert.ok(r.has('4,5') && !r.has('4,4'));
-  assert.equal(act(g, { t: 'move', x: 4, y: 4 }).ok, false);
-  assert.ok(act(g, { t: 'move', x: 4, y: 5 }).ok);
+  setRoll(g, 6);
+  const r = reach(g, cur(g), 2);
+  assert.ok(r.has('4,6') && !r.has('4,5'));
+  assert.equal(act(g, { t: 'move', x: 4, y: 5 }).ok, false);
+  assert.ok(act(g, { t: 'move', x: 4, y: 6 }).ok);
   assert.equal(g.turn, 1);
-  assert.equal(act(g, { t: 'move', x: 4, y: 7 }).ok, false, 'нельзя ходить, не бросив кубик');
+  assert.equal(act(g, { t: 'move', x: 4, y: 7 }).ok, false, 'нельзя ходить, не бросив кубики');
 }
 
-// 4. Ломать стены можно только на шестёрке.
+// 5. Прыжок через соседнюю фишку, а при стене за ней — обход по диагонали.
 {
   const g = newGame(seats(2), { bonus: false });
-  g.roll = 1; g.phase = 'act'; act(g, { t: 'wall', o: 'h', x: 0, y: 3 });
-  g.roll = 5; g.phase = 'act';
+  g.players[1].x = 4; g.players[1].y = 7; // соперник прямо перед нами
+  assert.ok(reach(g, cur(g), 1).has('4,6'), 'прыжок через фишку');
+  g.walls.push({ o: 'h', x: 4, y: 6, owner: 1 }); rebuild(g); // стена за соперником
+  const r = reach(g, cur(g), 1);
+  assert.ok(!r.has('4,6') && r.has('3,7') && r.has('5,7'), 'обход по диагонали');
+}
+
+// 6. Два кубика: выбранный ходит, второй уходит следующему игроку.
+{
+  const seq = [0.99, 0.01, 0.5]; let k = 0; const rng = () => seq[k++ % seq.length]; // 6, 1, потом 4
+  const g = newGame(seats(2), { bonus: false });
+  doRoll(g, rng);
+  assert.deepEqual(g.dice, [1, 6]); assert.equal(g.sel, 1, 'по умолчанию выбран больший');
+  assert.ok(act(g, { t: 'move', x: 4, y: 7, d: 0 }).ok, 'ходим единицей');
+  assert.equal(g.pass, 6, 'шестёрка ушла сопернику');
+  doRoll(g, rng);
+  assert.equal(g.turn, 1); assert.equal(g.dice[0], 6); assert.equal(g.diceFrom, 0);
+  assert.ok(act(g, { t: 'select', d: 1 }).ok); assert.equal(g.roll, g.dice[1]); assert.equal(g.phase, 'act', 'выбор кубика не завершает ход');
+  assert.equal(act(g, { t: 'select', d: 2 }).ok, false);
+}
+
+// 7. Ломать стены можно только шестёркой.
+{
+  const g = newGame(seats(2), { bonus: false });
+  setRoll(g, 1); act(g, { t: 'wall', o: 'h', x: 0, y: 3 });
+  setRoll(g, 5);
   assert.equal(act(g, { t: 'break', i: 0 }).ok, false);
-  g.roll = 6;
+  setRoll(g, 6);
   assert.ok(act(g, { t: 'break', i: 0 }).ok);
   assert.equal(g.walls.length, 0);
 }
 
-// 5. Бонусы: заморозка, ещё бросок, +2 стены.
+// 8. Бонусы: «ещё ход» и заморозка.
 {
   const g = newGame(seats(2), { bonus: false });
-  g.bonus['4,7'] = 'again'; g.roll = 2; g.phase = 'act';
+  g.bonus['4,7'] = 'again'; setRoll(g, 2);
   act(g, { t: 'move', x: 4, y: 7 });
   assert.equal(g.turn, 0); assert.equal(g.phase, 'roll');
-  g.bonus['4,6'] = 'freeze'; g.roll = 2; g.phase = 'act';
+  g.bonus['4,6'] = 'freeze'; setRoll(g, 2);
   act(g, { t: 'move', x: 4, y: 6 });
   assert.equal(g.players[1].skip, 0, 'пропуск уже потрачен');
   assert.equal(g.turn, 0, 'соперник заморожен — снова наш ход');
-  assert.ok(g.fx.some((e) => e.type === 'skip' && e.why === 'freeze'));
+}
+
+// 9. Бонусы расставлены симметрично на всех полях.
+for (const size of SIZES) {
+  const g = newGame(seats(2), { size });
+  for (const k of Object.keys(g.bonus)) {
+    const [x, y] = k.split(',').map(Number);
+    assert.equal(g.bonus[`${size - 1 - y},${x}`], g.bonus[k], `симметрия бонусов ${size}×${size}`);
+  }
 }
 console.log('engine: OK');

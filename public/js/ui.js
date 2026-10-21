@@ -6,13 +6,12 @@ import * as A from './art.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const { cx, cy, S, VB, GP, PAD, P, N } = A;
-const START_DIST = N - 1;
+const { cx, cy, S, GP, PAD, P } = A;
 
 let net = null, view = null, g = null, gameId = null, seen = 0;
 let mode = 'move', preview = null, turnKey = '', prevWalls = 0, pending = false, lastPtr = 'mouse';
-let isLocal = false, wasOnline = false, listTimer = 0, rollTimer = 0, dieShown = null, rolling = false;
-const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, botLevel: 'normal' };
+let isLocal = false, wasOnline = false, listTimer = 0, rollTimer = 0, rolling = false;
+const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, botLevel: 'normal', size: 9 };
 const setSeg = (el, val) => el.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.l === val));
 
 /* ---------- тема, иконки, мелочи ---------- */
@@ -78,9 +77,8 @@ function onRoom(m) {
   }
   const ng = E.hydrate(m.game);
   if (ng.id !== gameId) {
-    gameId = ng.id; g = ng; seen = ng.fxSeq; prevWalls = g.walls.length; turnKey = ''; dieShown = null; mode = 'move'; preview = null;
+    gameId = ng.id; g = ng; seen = ng.fxSeq; prevWalls = g.walls.length; turnKey = ''; mode = 'move'; preview = null;
     buildBoard(); $('#win').classList.add('hidden'); show('game');
-    if (g.roll) setDie(g.roll);
     if (g.over) showWin(g.winner);
   } else {
     const evs = ng.fx.filter((e) => e.seq > seen); g = ng; seen = ng.fxSeq;
@@ -155,12 +153,14 @@ function renderLocal() {
   }
   setSwitch($('#localBonus'), localCfg.bonus);
   setSeg($('#localLevel'), localCfg.botLevel);
+  setSeg($('#localSize'), String(localCfg.size));
 }
 $('#localBonus').onclick = (e) => { localCfg.bonus = !localCfg.bonus; setSwitch(e.currentTarget, localCfg.bonus); };
 $('#localLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.botLevel = b.dataset.l; setSeg($('#localLevel'), b.dataset.l); } };
+$('#localSize').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.size = +b.dataset.l; setSeg($('#localSize'), b.dataset.l); } };
 $('#bLocalGo').onclick = () => {
   const seats = Array.from({ length: localCfg.n }, (_, i) => ({ name: localCfg.names[i].trim() || 'Игрок ' + (i + 1), bot: localCfg.bot[i] }));
-  useLocal().setup(seats, { bonus: localCfg.bonus, botLevel: localCfg.botLevel });
+  useLocal().setup(seats, { bonus: localCfg.bonus, botLevel: localCfg.botLevel, size: localCfg.size });
 };
 
 /* ---------- лобби ---------- */
@@ -185,7 +185,9 @@ function renderLobby() {
   $('#optBonusTxt').textContent = host ? '' : (v.opts.bonus ? 'Включены' : 'Выключены');
   $('#optPublicTxt').textContent = host ? '' : (v.isPublic ? 'Видна' : 'Только по коду');
   setSeg($('#optLevel'), v.opts.botLevel || 'normal'); $('#optLevel').classList.toggle('hidden', !host);
-  $('#optLevelTxt').textContent = host ? '' : (v.opts.botLevel === 'easy' ? 'Лёгкие' : 'Сильные');
+  $('#optLevelTxt').textContent = host ? '' : { easy: 'Лёгкие', normal: 'Сильные', hard: 'Мастер' }[v.opts.botLevel || 'normal'];
+  setSeg($('#optSize'), String(v.opts.size || 9)); $('#optSize').classList.toggle('hidden', !host);
+  $('#optSizeTxt').textContent = host ? '' : `${v.opts.size || 9}×${v.opts.size || 9}`;
   $('#lbStart').classList.toggle('hidden', !host); $('#lbWait').classList.toggle('hidden', host);
   $('#lbStart').disabled = v.seats.length < 2;
   $('#lbNote').textContent = host && v.seats.length < 2 ? 'Нужно минимум 2 игрока: позовите друга по коду или добавьте бота.' : '';
@@ -193,6 +195,7 @@ function renderLobby() {
 $('#optBonus').onclick = (e) => net.send({ t: 'opts', bonus: !e.currentTarget.classList.contains('on') });
 $('#optPublic').onclick = (e) => net.send({ t: 'opts', isPublic: !e.currentTarget.classList.contains('on') });
 $('#optLevel').onclick = (e) => { const b = e.target.closest('button'); if (b) net.send({ t: 'opts', botLevel: b.dataset.l }); };
+$('#optSize').onclick = (e) => { const b = e.target.closest('button'); if (b) net.send({ t: 'opts', size: +b.dataset.l }); };
 $('#lbStart').onclick = () => net.send({ t: 'start' });
 $('#lbLeave').onclick = () => net.send({ t: 'leave' });
 $('#lbLink').onclick = () => copy(`${location.origin}/?room=${view.code}`, 'Ссылка-приглашение скопирована');
@@ -202,6 +205,7 @@ $('#gRoom').onclick = () => { if (!isLocal && view) copy(`${location.origin}/?ro
 /* ---------- поле ---------- */
 const board = $('#board');
 function buildBoard() {
+  board.setAttribute('viewBox', `0 0 ${A.vbOf(g.size)} ${A.vbOf(g.size)}`);
   board.innerHTML = `<g id="base">${A.boardBase(g)}</g><g id="goal"></g><g id="bonuses"></g><g id="slots"></g><g id="walls"></g><g id="overlay"></g><g id="pawns">` +
     g.players.map((p) => A.pawnGroup(p, { id: 'pawn' + p.i })).join('') + '</g><g id="fxl"></g>';
   $('#gCode').textContent = isLocal ? 'здесь' : view.code;
@@ -213,7 +217,7 @@ function drawDynamic() {
   const my = canAct(), p = E.cur(g);
   $('#goal').innerHTML = g.over ? '' : A.goalLayer(g, g.turn);
   $('#bonuses').innerHTML = A.bonusLayer(g);
-  $('#slots').innerHTML = my && mode === 'wall' ? A.slotLayer() : '';
+  $('#slots').innerHTML = my && mode === 'wall' ? A.slotLayer(g.size) : '';
   $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: my && mode === 'break' });
   prevWalls = g.walls.length;
   let o = '';
@@ -229,20 +233,38 @@ function drawDynamic() {
   });
 }
 
-/* ---------- кубик ---------- */
+/* ---------- кубики ----------
+   Два кубика: левый передан предыдущим игроком, правый бросается заново. Ходят выбранным,
+   второй уходит следующему игроку. */
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-const dieEl = $('#die');
-function buildDie() { dieEl.innerHTML = '<i></i>'.repeat(9); setDie(null); }
-function setDie(v) {
-  dieEl.querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', !!v && PIPS[v].includes(i)));
-  dieEl.classList.toggle('idle', !v); dieShown = v;
+const dieBtns = $$('#dice .die-btn');
+function buildDie() { dieBtns.forEach((b) => (b.querySelector('.die').innerHTML = '<i></i>'.repeat(9))); }
+function paintDie(d, v) {
+  const el = dieBtns[d].querySelector('.die');
+  el.querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', !!v && PIPS[v].includes(i)));
+  el.classList.toggle('idle', !v);
 }
-function rollAnim(final) {
+const nextName = () => g.players[(g.turn + 1) % g.n].name;
+function renderDice(myTurn) {
+  const vals = g.dice || [g.pass, null], from = g.dice ? g.diceFrom : g.pass != null ? g.passFrom : -1;
+  if (!rolling) { paintDie(0, vals[0]); paintDie(1, vals[1]); }
+  const canPick = myTurn && g.phase === 'act' && !pending && g.dice && g.dice[0] !== g.dice[1];
+  dieBtns.forEach((b, d) => {
+    const sel = !!g.dice && d === g.sel;
+    b.classList.toggle('sel', sel); b.classList.toggle('dim', !!g.dice && !sel);
+    b.setAttribute('aria-checked', sel); b.disabled = !canPick;
+    b.querySelector('.dlab').textContent = d === 0 ? (from >= 0 ? 'от ' + g.players[from].name : 'свой') : 'бросок';
+    b.setAttribute('aria-label', `${d === 0 ? 'Кубик от предыдущего игрока' : 'Новый кубик'}${vals[d] ? ': ' + vals[d] : ''}`);
+  });
+}
+dieBtns.forEach((b, d) => (b.onclick = () => { if (g && g.dice && view.you === g.turn && g.phase === 'act' && !pending && d !== g.sel) { preview = null; send({ t: 'select', d }); } }));
+function rollAnim(dice) {
   clearInterval(rollTimer); rolling = true; let n = 0;
-  dieEl.animate([{ transform: 'rotate(-5deg)' }, { transform: 'rotate(-200deg) translateY(-12px) scale(1.05)', offset: .4 }, { transform: 'rotate(370deg) translateY(-4px)', offset: .75 }, { transform: 'rotate(-8deg) translateY(1px)', offset: .9 }, { transform: 'rotate(-5deg)' }], { duration: 900, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  paintDie(0, dice[0]);
+  dieBtns[1].querySelector('.die').animate([{ transform: 'rotate(-5deg)' }, { transform: 'rotate(-200deg) translateY(-12px) scale(1.05)', offset: .4 }, { transform: 'rotate(370deg) translateY(-4px)', offset: .75 }, { transform: 'rotate(-8deg) translateY(1px)', offset: .9 }, { transform: 'rotate(-5deg)' }], { duration: 900, easing: 'cubic-bezier(.2,.8,.2,1)' });
   rollTimer = setInterval(() => {
-    setDie(1 + Math.floor(Math.random() * 6)); sfx.play('tick');
-    if (++n >= 7) { clearInterval(rollTimer); setDie(final); rolling = false; renderGame(); }
+    paintDie(1, 1 + Math.floor(Math.random() * 6)); sfx.play('tick');
+    if (++n >= 7) { clearInterval(rollTimer); rolling = false; if (g) renderGame(); }
   }, 95);
 }
 
@@ -250,7 +272,7 @@ function rollAnim(final) {
 function playFx(e) {
   const pl = g.players[e.p];
   switch (e.type) {
-    case 'roll': rollAnim(e.r); setTimeout(() => sfx.play('roll'), 700); break;
+    case 'roll': rollAnim(e.dice); setTimeout(() => sfx.play('roll'), 700); break;
     case 'move': {
       $('#pawn' + e.p)?.querySelector('.pawn-body')?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-12px)', offset: .45 }, { transform: 'translateY(1px) scale(1.04,.96)', offset: .85 }, { transform: 'translateY(0)' }], { duration: 160 + 120 * Math.min(3, e.steps), easing: 'cubic-bezier(.2,.8,.2,1)' });
       sfx.play('move'); break;
@@ -267,8 +289,8 @@ function playFx(e) {
   }
 }
 function fillGoal(i) {
-  const p = g.players[i], goal = E.SIDES[p.side].goal; let h = '';
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (goal(x, y)) h += `<rect class="sweep" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" fill="${A.pv(i)}" fill-opacity=".55"/>`;
+  const p = g.players[i], goal = E.goalOf(g.size, p.side); let h = '';
+  for (let y = 0; y < g.size; y++) for (let x = 0; x < g.size; x++) if (goal(x, y)) h += `<rect class="sweep" x="${cx(x)}" y="${cy(y)}" width="${S}" height="${S}" rx="7" fill="${A.pv(i)}" fill-opacity=".55"/>`;
   $('#fxl').insertAdjacentHTML('beforeend', h);
   $$('#fxl .sweep').forEach((r, k) => r.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: k * 50, fill: 'both' }));
 }
@@ -284,6 +306,7 @@ function showWin(i) {
   $('#winStats').innerHTML = [[g.turns + 1, plural(g.turns + 1, 'ход', 'хода', 'ходов')], [g.walls.length, 'стен на поле'], [`${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`, 'время']].map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
   const rank = [...g.players].sort((a, b) => (b.i === i) - (a.i === i) || E.dist(g, a) - E.dist(g, b));
   $('#winRows').innerHTML = rank.map((q, k) => `<tr><td class="mono" style="${k ? 'color:var(--muted)' : 'font-weight:700'}">${k + 1}</td><td><span class="pn" style="${k ? '' : 'font-weight:600'}">${A.shape(q.i, 20)}${esc(q.name)}${q.bot ? ' <span class="tag">бот</span>' : ''}</span></td><td class="mono r">${q.walls}</td><td class="mono r">${E.dist(g, q)}</td></tr>`).join('');
+  $('#winBoard').setAttribute('viewBox', `0 0 ${A.vbOf(g.size)} ${A.vbOf(g.size)}`);
   $('#winBoard').innerHTML = A.staticBoard(g);
   const can = isLocal || (view && view.you === view.host);
   $('#bAgain').classList.toggle('hidden', !can);
@@ -300,7 +323,7 @@ function exitGame(force) {
 
 /* ---------- панель партии ---------- */
 const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn && g.phase === 'act';
-const progress = (q) => Math.max(0, Math.min(1, 1 - E.dist(g, q) / START_DIST));
+const progress = (q) => Math.max(0, Math.min(1, 1 - E.dist(g, q) / (g.size - 1)));
 function playerInfo(q) {
   const off = !isLocal && view.seats[q.i] && !view.seats[q.i].connected && !q.bot;
   const me = q.i === view.you && !isLocal;
@@ -330,8 +353,6 @@ function renderGame() {
     if (myTurn && g.phase === 'act') { const o = E.options(g); mode = o.move ? 'move' : o.wall ? 'wall' : 'break'; }
     if (myTurn && g.phase === 'roll' && !isLocal) sfx.play('turn');
   }
-  if (g.roll && dieShown !== g.roll && !rolling) setDie(g.roll);
-  if (!g.roll && !rolling && dieShown) setDie(null);
 
   const o = myTurn && g.phase === 'act' ? E.options(g) : { move: false, wall: false, brk: false };
   const canRoll = myTurn && g.phase === 'roll' && !pending;
@@ -340,14 +361,13 @@ function renderGame() {
   if (g.over) st = 'Партия окончена';
   else if (rolling) st = 'Кубик катится…';
   else if (g.phase === 'roll') st = myTurn ? 'Ваш ход: бросьте кубик' : (p.bot || !myTurn && isLocal ? 'Думает…' : 'Бросает кубик…');
-  else st = `Выпало <b>${g.roll}</b> · ход до <b>${E.maxSteps(g.roll)}</b> ${plural(E.maxSteps(g.roll), 'клетки', 'клеток', 'клеток')}`;
+  else st = `Кубик <b>${g.roll}</b> → до <b>${E.maxSteps(g.roll)}</b> ${plural(E.maxSteps(g.roll), 'клетки', 'клеток', 'клеток')} · <b>${g.dice[1 - g.sel]}</b> получит ${esc(nextName())}`;
   $('#tcStatus').innerHTML = st;
   $('#rollBtn').classList.toggle('hidden', !canRoll);
   $('.dock').classList.toggle('can-roll', canRoll);
-  $('#dieBtn').disabled = !canRoll;
-  $('#dieBtn').setAttribute('aria-label', canRoll ? 'Бросить кубик' : g.roll ? `Кубик: ${g.roll}` : 'Кубик');
+  renderDice(myTurn);
 
-  $('#aMove').textContent = g.roll ? `до ${E.maxSteps(g.roll)}` : '1–3';
+  $('#aMove').textContent = g.roll ? `до ${E.maxSteps(g.roll)}` : '1–2';
   $('#aWall').textContent = `${p.walls} шт.`;
   $('#aBreak').textContent = g.roll === 6 ? `${g.walls.length} шт.` : 'на 6';
   $$('#acts button').forEach((b) => {
@@ -386,11 +406,11 @@ function showEmote(seat, e) {
 }
 
 /* ---------- ввод на поле ---------- */
-function svgPoint(e) { const r = board.getBoundingClientRect(), k = VB / r.width; return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; }
+function svgPoint(e) { const r = board.getBoundingClientRect(), k = A.vbOf(g.size) / r.width; return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; }
 function wallAt(e) {
   const [px, py] = svgPoint(e);
   const fx = (px - PAD + GP / 2) / P - 1, fy = (py - PAD + GP / 2) / P - 1;
-  const ix = Math.max(0, Math.min(N - 2, Math.round(fx))), iy = Math.max(0, Math.min(N - 2, Math.round(fy)));
+  const ix = Math.max(0, Math.min(g.size - 2, Math.round(fx))), iy = Math.max(0, Math.min(g.size - 2, Math.round(fy)));
   return { o: Math.abs(fx - ix) >= Math.abs(fy - iy) ? 'h' : 'v', x: ix, y: iy };
 }
 let forcedO = null; // ориентация, выбранная поворотом; сбрасывается при смене позиции курсора на другую точку
@@ -431,7 +451,7 @@ $('#cfYes').onclick = () => { if (preview) placePreview(); };
 function setMode(m) { if (!canAct()) return; const b = $(`#acts [data-m=${m}]`); if (b.disabled) return; mode = m; preview = null; forcedO = null; renderGame(); }
 $('#acts').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
 const doRoll = () => { if (g && g.phase === 'roll' && view.you === g.turn && !pending && !g.over) send({ t: 'roll' }); };
-$('#rollBtn').onclick = doRoll; $('#dieBtn').onclick = doRoll;
+$('#rollBtn').onclick = doRoll;
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { $('#rules').classList.add('hidden'); document.body.classList.remove('sheet-open'); if (g) { preview = null; renderGame(); } return; }
   if (!g || $('#game').classList.contains('hidden') || /INPUT|TEXTAREA/.test(document.activeElement.tagName) || e.metaKey || e.ctrlKey) return;
@@ -441,6 +461,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'w' || k === 'ц') setMode('wall');
   else if (k === 'b' || k === 'и') setMode('break');
   else if ((k === 'r' || k === 'к') && mode === 'wall') rotatePreview();
+  else if ((k === '1' || k === '2') && g.dice && view.you === g.turn && g.phase === 'act' && !pending && +k - 1 !== g.sel) send({ t: 'select', d: +k - 1 });
 });
 
 // Возврат в комнату после перезагрузки и вход по ссылке ?room=CODE
