@@ -489,3 +489,5 @@ if (canOnline) {
     setTimeout(() => { if (!view) { show('find'); toast('Приглашение в комнату: нажмите «Войти»'); } }, 900);
   }
 }
+// стартовый экран виден сразу, без show(): отмечаем его в статистике отдельно
+setTimeout(() => { if (!shown) { const s = $$('.screen').find((x) => !x.classList.contains('hidden')); if (s) { shown = s.id; track('screen', { s: s.id }); } } }, 1000);
