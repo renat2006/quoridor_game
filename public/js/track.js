@@ -60,10 +60,13 @@ if (!off) {
 }
 
 /* ---------- PostHog: запись сессий, если на сервере задан POSTHOG_KEY ---------- */
-if (!off && CFG.posthog?.key) {
+if (!off && CFG.posthog?.key) loadPostHog(2);
+function loadPostHog(tries) {
   const s = document.createElement('script');
   s.src = CFG.posthog.host.replace('.i.posthog.com', '-assets.i.posthog.com') + '/static/array.js';
   s.async = true; s.crossOrigin = 'anonymous';
+  // первое соединение на мобильной сети иногда обрывается — пробуем ещё раз
+  s.onerror = () => { s.remove(); if (tries > 1) setTimeout(() => loadPostHog(tries - 1), 3000); };
   s.onload = () => {
     const lib = window.posthog; if (!lib?.init) return;
     lib.init(CFG.posthog.key, {
