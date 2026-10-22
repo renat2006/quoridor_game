@@ -327,6 +327,39 @@ export function act(g, a, rng = Math.random) {
   return { ok: true };
 }
 
+/* ======================== Запись и повтор партий ======================== */
+// Версия правил в записях: поднимайте при любом изменении правил или RULES — старые повторы иначе разойдутся.
+export const RULES_VERSION = 1;
+// Детерминированный генератор (mulberry32): то же зерно и те же действия дают ту же партию.
+export function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// В записи и повторе остаются только поля действия, остальное (подсказки бота и т. п.) отбрасывается.
+export const cleanAction = (a) => { const o = { t: a.t }; for (const k of ['x', 'y', 'o', 'i', 'c']) if (a[k] !== undefined) o[k] = a[k]; return o; };
+/* Пошаговый повтор записи { seed, opts, seats, actions: [[мс, место, действие]] }:
+   g — партия, step() применяет следующее действие и возвращает false, если оно не прошло по правилам. */
+export function replayer(rec) {
+  const rng = seededRng(rec.seed);
+  const g = newGame(rec.seats.map((s, i) => ({ name: s.bot ? `Бот ${i + 1}` : `Игрок ${i + 1}`, bot: !!s.bot })), rec.opts, rng);
+  let k = 0;
+  return {
+    g, get k() { return k; },
+    step() {
+      if (k >= rec.actions.length) return false;
+      const [, seat, a] = rec.actions[k];
+      if (g.over || g.turn !== seat || !act(g, cleanAction(a), rng).ok) return false;
+      k++; return true;
+    },
+  };
+}
+/* Повтор первых upto действий; bad — номер первого действия, которое не прошло (-1, если все прошли). */
+export function replay(rec, upto = Infinity) {
+  const r = replayer(rec), n = Math.min(upto, rec.actions.length);
+  while (r.k < n) if (!r.step()) return { g: r.g, bad: r.k };
+  return { g: r.g, bad: -1 };
+}
+
 /* ======================== ИИ ========================
    Бот планирует весь ход: лучевой поиск по цепочкам действий (шаги, стены, карты, способность роли)
    глубиной до четырёх действий, на каждом уровне оставляя лучшие ветви. Позиция оценивается

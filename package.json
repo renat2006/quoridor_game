@@ -5,11 +5,12 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node test/engine.test.js && node test/server.test.js",
-    "bench": "node test/bench.js"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node test/engine.test.js && node --disable-warning=ExperimentalWarning test/server.test.js",
+    "bench": "node test/bench.js",
+    "demo-stats": "node --disable-warning=ExperimentalWarning test/seed-stats.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=22.13" },
   "dependencies": { "ws": "^8.18.0" },
   "license": "MIT"
 }

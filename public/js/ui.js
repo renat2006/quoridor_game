@@ -2,6 +2,7 @@ import * as E from './engine.js';
 import { RemoteNet, LocalNet } from './net.js';
 import { sfx } from './fx.js';
 import * as A from './art.js';
+import { track } from './track.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -20,7 +21,7 @@ const applyTheme = (t) => (t === 'auto' ? document.documentElement.removeAttribu
 let theme = 'auto'; try { theme = localStorage.wd_theme || 'auto'; } catch {}
 applyTheme(theme);
 function cycleTheme() {
-  theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme);
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme); track('theme', { theme });
   try { localStorage.wd_theme = theme; } catch {}
   toast({ auto: 'Тема как в системе', light: 'Светлая тема', dark: 'Тёмная тема' }[theme]);
 }
@@ -36,7 +37,9 @@ function toast(t, err = false) {
   toastEl.textContent = t; toastEl.classList.toggle('err', err); toastEl.classList.add('show');
   clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2200);
 }
+let shown = '';
 function show(id) {
+  if (id !== shown) { shown = id; track('screen', { s: id }); }
   $$('.screen').forEach((s) => s.classList.toggle('hidden', s.id !== id));
   document.body.classList.remove('sheet-open');
   clearInterval(listTimer);
@@ -95,11 +98,11 @@ $$('[data-go]').forEach((b) => (b.onclick = () => show(b.dataset.go)));
 $('#bCreate').onclick = () => { $('#roomTitle').value ||= name() + ': партия'; show('create'); setTimeout(() => $('#roomTitle').focus(), 50); };
 $('#bFind').onclick = () => { useRemote(); show('find'); updateCode(); setTimeout(() => cells[0].focus(), 50); };
 $('#bLocal').onclick = () => { renderLocal(); show('local'); };
-$$('[data-act=rules]').forEach((b) => (b.onclick = () => { $('#rules').classList.remove('hidden'); $('#rules .ibtn').focus(); }));
+$$('[data-act=rules]').forEach((b) => (b.onclick = () => { track('rules'); $('#rules').classList.remove('hidden'); $('#rules .ibtn').focus(); }));
 $$('[data-close]').forEach((b) => (b.onclick = () => $('#rules').classList.add('hidden')));
 $('#rules').addEventListener('click', (e) => { if (e.target.id === 'rules') $('#rules').classList.add('hidden'); });
 $$('[data-act=theme]').forEach((b) => (b.onclick = cycleTheme));
-$('[data-act=mute]').onclick = () => { sfx.toggle(); muteLabel(); toast(sfx.muted ? 'Звук выключен' : 'Звук включён'); };
+$('[data-act=mute]').onclick = () => { sfx.toggle(); muteLabel(); track('sound', { on: !sfx.muted }); toast(sfx.muted ? 'Звук выключен' : 'Звук включён'); };
 function muteLabel() { const b = $('[data-act=mute]'); b.innerHTML = A.icon(sfx.muted ? 'mute' : 'sound'); b.setAttribute('aria-label', sfx.muted ? 'Включить звук' : 'Выключить звук'); }
 muteLabel();
 $('[data-act=exit]').onclick = () => exitGame();
@@ -109,7 +112,7 @@ $('#scrim').onclick = () => document.body.classList.remove('sheet-open');
 
 /* ---------- создание и поиск ---------- */
 $('#roomPublic').onclick = (e) => setSwitch(e.currentTarget, !e.currentTarget.classList.contains('on'));
-$('#bCreateGo').onclick = () => useRemote().send({ t: 'create', name: name(), title: $('#roomTitle').value, isPublic: $('#roomPublic').classList.contains('on') });
+$('#bCreateGo').onclick = () => track('room_create', { isPublic: $('#roomPublic').classList.contains('on') }) || useRemote().send({ t: 'create', name: name(), title: $('#roomTitle').value, isPublic: $('#roomPublic').classList.contains('on') });
 $('#roomTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#bCreateGo').click(); });
 
 const cells = $$('#codeCells .cd');
@@ -129,7 +132,7 @@ cells.forEach((c, i) => {
     if (!t) return; e.preventDefault(); cells.forEach((x, k) => (x.value = t[k] || '')); cells[Math.min(t.length, 3)].focus(); updateCode();
   });
 });
-function joinCode(c) { c = String(c).trim().toUpperCase(); if (c.length !== 4) return toast('Введите код из 4 букв', true); useRemote().send({ t: 'join', code: c, name: name() }); }
+function joinCode(c) { c = String(c).trim().toUpperCase(); if (c.length !== 4) return toast('Введите код из 4 букв', true); track('room_join'); useRemote().send({ t: 'join', code: c, name: name() }); }
 $('#bJoinCode').onclick = () => joinCode(codeVal());
 function renderRooms(rooms) {
   $('#roomsCount').textContent = rooms.length ? `${rooms.length} · обновляется само` : '';
@@ -162,6 +165,7 @@ $('#localLevel').onclick = (e) => { const b = e.target.closest('button'); if (b)
 $('#localSize').onclick = (e) => { const b = e.target.closest('button'); if (b) { localCfg.size = +b.dataset.l; setSeg($('#localSize'), b.dataset.l); } };
 $('#bLocalGo').onclick = () => {
   const seats = Array.from({ length: localCfg.n }, (_, i) => ({ name: localCfg.names[i].trim() || 'Игрок ' + (i + 1), bot: localCfg.bot[i] }));
+  track('local_start', { n: seats.length, humans: seats.filter((x) => !x.bot).length, size: localCfg.size, botLevel: localCfg.botLevel, roles: localCfg.roles, bonus: localCfg.bonus });
   useLocal().setup(seats, { bonus: localCfg.bonus, roles: localCfg.roles, botLevel: localCfg.botLevel, size: localCfg.size });
 };
 

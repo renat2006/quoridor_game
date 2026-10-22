@@ -1,5 +1,6 @@
 // Два транспорта с одинаковым интерфейсом: онлайн (WebSocket) и локальный (комната в браузере).
 import { Room } from './room.js';
+import { vid, trackGame } from './track.js';
 
 function token() {
   try {
@@ -15,7 +16,7 @@ export class RemoteNet {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = this.ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.onopen = () => {
-      this.retry = 0; ws.send(JSON.stringify({ t: 'hello', token: this.token }));
+      this.retry = 0; ws.send(JSON.stringify({ t: 'hello', token: this.token, vid }));
       for (const m of this.queue.splice(0)) ws.send(JSON.stringify(m));
       this.onmsg({ t: 'status', online: true });
     };
@@ -33,7 +34,11 @@ export class RemoteNet {
 
 // Локальная игра: все люди за одним экраном, остальные места занимают боты.
 export class LocalNet {
-  constructor() { this.onmsg = () => {}; this.room = null; this.seats = []; this.opts = {}; }
+  constructor() {
+    this.onmsg = () => {}; this.room = null; this.seats = []; this.opts = {};
+    // вкладку закрыли посреди партии — запись уходит как брошенная
+    addEventListener('pagehide', this.hide = () => this.room?.closeRecord('abandoned'));
+  }
   emit() {
     const r = this.room; if (!r) return;
     const g = r.game, you = g && r.phase === 'playing' && !r.seats[g.turn].bot ? g.turn : (g && r.phase === 'over' ? g.winner : -1);
@@ -43,7 +48,7 @@ export class LocalNet {
   setup(seats, opts) {
     this.seats = seats; this.opts = opts;
     this.room?.destroy();
-    this.room = new Room('LOCAL', { title: 'Локальная игра', isPublic: false, onUpdate: () => this.emit() });
+    this.room = new Room('LOCAL', { title: 'Локальная игра', isPublic: false, onUpdate: () => this.emit(), onRecord: trackGame });
     this.room.opts = { bonus: opts.bonus !== false, roles: opts.roles !== false, botLevel: opts.botLevel || 'normal', size: opts.size || 9 };
     seats.forEach((s, i) => this.room.sit({ token: 'l' + i, name: s.name, bot: s.bot, local: !s.bot }));
     this.room.host = 0; this.room.start(0);
@@ -57,5 +62,5 @@ export class LocalNet {
     } else if (m.t === 'rematch') this.setup(this.seats, this.opts);
     else if (m.t === 'emote') { /* в локальной игре без эмоций */ }
   }
-  close() { this.room?.destroy(); this.room = null; }
+  close() { removeEventListener('pagehide', this.hide); this.room?.destroy(); this.room = null; }
 }

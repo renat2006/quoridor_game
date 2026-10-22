@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
-import { botAct, hydrate } from '../public/js/engine.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { botAct, hydrate, replay } from '../public/js/engine.js';
+import { Room } from '../public/js/room.js';
 
-// тесты поднимают сервер на свободном порту, чтобы не мешать запущенной игре
+// тесты поднимают сервер на свободном порту и с пустой базой статистики, чтобы не мешать запущенной игре
 process.env.PORT = '0';
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-test-'));
+delete process.env.STATS_KEY; delete process.env.TELEMETRY;
 const { server } = await import('../server.js');
 
 await new Promise((r) => (server.listening ? r() : server.once('listening', r)));
@@ -78,5 +84,33 @@ await b2.wait((c) => c.last && c.last.you === 1 && c.last.seats[1].connected);
 
 a.ws.close(); b2.ws.close();
 await new Promise((r) => setTimeout(r, 200));
+
+// Статистика: доигранная онлайн-партия записана и переигрывается движком
+// (вторая ещё идёт: брошенной она станет, когда сервер уберёт пустую комнату).
+const base = `http://localhost:${port}`;
+const get = (u) => fetch(base + u).then((r) => r.json());
+const post = (u, body) => fetch(base + u, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.json());
+let st = await get('/api/stats');
+assert.equal(st.kpi.games, 1); assert.equal(st.kpi.finished, 1); assert.equal(st.kpi.online, 1);
+const list = await get('/api/stats/games');
+const done = list.find((x) => x.status === 'over');
+const { rec } = await get('/api/stats/game?id=' + done.id);
+const rp = replay(rec);
+assert.equal(rp.bad, -1); assert.equal(rp.g.winner, done.winner, 'повтор приходит к тому же победителю');
+
+// Локальная партия из браузера принимается только если честно переигрывается.
+let local;
+const room = new Room('L', { onRecord: (r) => { local = r; } });
+room.sit({ token: 'l0', name: 'A', local: true, vid: 'abcdef123456' }); room.sit({ token: 'l1', name: 'B', bot: true });
+room.start(0); clearTimeout(room.timer);
+while (!room.game.over) room.apply(room.game.turn, botAct(room.game));
+room.afterPlay(); clearTimeout(room.timer);
+const fake = JSON.parse(JSON.stringify(local)); fake.id = 'fakegame1'; fake.actions[0][2] = { t: 'move', x: 0, y: 0 };
+assert.equal((await post('/api/game', fake)).ok, false, 'подделанная запись отклонена');
+assert.equal((await post('/api/game', local)).ok, true);
+assert.equal((await post('/api/e', { vid: 'abcdef123456', sid: 'sess123456', ev: [{ type: 'visit', data: { device: 'phone' } }, { type: 'hack' }] })).n, 1);
+st = await get('/api/stats?days=1');
+assert.equal(st.kpi.games, 2); assert.equal(st.kpi.visitors, 1); assert.equal(st.funnel[2].n, 1, 'посетитель доиграл партию');
+assert.equal(st.devices.phone, 1);
 console.log('server: OK');
 server.close(); process.exit(0);

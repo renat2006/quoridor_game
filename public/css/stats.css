@@ -1,0 +1,129 @@
+/* Дашборд статистики: те же токены и карточки, что в игре. Цвета графиков проверены на различимость
+   (в том числе при дальтонизме) для светлой и тёмной темы. */
+:root{--c1:#2F6BD8;--c2:#E5482E}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--c1:#4D93E6;--c2:#F25C4A}}
+:root[data-theme=dark]{--c1:#4D93E6;--c2:#F25C4A}
+
+.st-bar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.st-bar .brand{color:inherit;text-decoration:none}
+.st-main{width:100%;max-width:1280px;margin:0 auto;padding:24px 32px 64px}
+.st-login{margin:48px auto 0}
+.st-login .h2{margin-top:20px}
+#dash>.note{margin-bottom:12px}
+
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.kpi{padding:16px 18px;background:var(--surface);border:var(--bw) solid var(--ink);border-radius:var(--r);box-shadow:var(--sh)}
+.kpi b{display:block;margin-top:6px;font-size:30px;line-height:1.1;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi small{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+
+.st-grid{display:grid;gap:16px;margin-top:16px}
+.st-grid.g2{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.st-grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.st-card{padding:20px 22px;box-shadow:var(--sh);min-width:0}
+.st-card>.note{margin-top:4px}
+.st-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.st-sec{margin-top:40px;font-size:24px;font-weight:700;letter-spacing:-.02em}
+.st-sec h2{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.seg2.mini{display:inline-flex;margin-top:12px}
+.seg2.mini button{height:28px;padding:0 10px;font-size:12px}
+.empty{padding:18px 0 4px;color:var(--muted);font-size:14px}
+
+.legend{display:flex;gap:14px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px}
+
+/* столбики по дням: сетка значений и колонки по дням */
+.cols{position:relative;height:220px;margin-top:16px;padding-left:34px}
+.cols .grid{position:absolute;left:34px;right:0;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.cols .grid span{position:absolute;left:-34px;top:-8px;width:28px;text-align:right;font-family:var(--mono)}
+.cols .grid.zero{border-top-color:var(--line-2)}
+.cols .days{position:absolute;inset:0 0 0 34px;display:flex;align-items:flex-end;gap:2px}
+.cols .day{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px;position:relative}
+.cols .day:hover{background:color-mix(in srgb,var(--sunk) 70%,transparent)}
+.cols .day i{flex:1;max-width:14px;border-radius:4px 4px 0 0;min-height:0}
+.cols .day i.a{background:var(--c1)}.cols .day i.b{background:var(--c2)}
+.xlab{display:flex;gap:2px;margin-left:34px;margin-top:6px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.xlab span{flex:1;min-width:0;text-align:center;white-space:nowrap;overflow:visible}
+
+/* горизонтальные полосы */
+.hb{display:grid;gap:10px;margin-top:14px}
+.hb-row{display:grid;grid-template-columns:minmax(84px,40%) minmax(0,1fr) auto;align-items:center;gap:10px;font-size:14px}
+.hb-l{display:flex;align-items:center;gap:6px;min-width:0;color:var(--ink-2)}
+.hb-l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hb-t{position:relative;height:12px;border-radius:4px;background:var(--sunk)}
+.hb-t b{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;background:var(--c1)}
+.hb-t b.alt{background:var(--c2)}
+.hb-t em{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
+.hb-v{font-family:var(--mono);font-size:13px;font-weight:600;text-align:right;white-space:nowrap}
+.hb-v small{font-weight:500;color:var(--muted);margin-left:4px}
+.hb-row.dim .hb-v{color:var(--muted)}
+
+.mini-t{width:100%;margin-top:14px;border-collapse:collapse;font-size:14px}
+.mini-t th{font-size:12px;font-weight:600;color:var(--muted);text-align:right;padding:4px 6px}
+.mini-t th:first-child,.mini-t td:first-child{text-align:left;padding-left:0}
+.mini-t td{padding:7px 6px;border-top:1px solid var(--line);text-align:right;font-family:var(--mono);font-size:13px}
+.mini-t td:first-child{font-family:var(--sans);font-size:14px;color:var(--ink-2)}
+
+/* таблицы партий и ошибок */
+.st-table-wrap{margin-top:12px;padding:6px 8px 10px;overflow-x:auto}
+.st-table{width:100%;border-collapse:collapse;font-size:14px}
+.st-table th{position:sticky;top:0;font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:10px 12px;white-space:nowrap}
+.st-table td{padding:10px 12px;border-top:1px solid var(--line);vertical-align:middle}
+.st-table .r{text-align:right;font-family:var(--mono)}
+.st-table tbody tr[data-id]{cursor:pointer}
+.st-table tbody tr[data-id]:hover{background:var(--sunk)}
+.st-table .when,.st-table .mode{white-space:nowrap;color:var(--ink-2)}
+.st-table .res{white-space:nowrap}
+.st-table .res .note{display:block;line-height:1.3}
+.st-table .who{display:flex;flex-wrap:wrap;gap:6px}
+.pl{display:inline-flex;align-items:center;gap:4px;padding:2px 8px 2px 4px;border-radius:999px;border:1px solid var(--line-2);font-size:12px;white-space:nowrap;color:var(--ink-2)}
+.pl.win{border-color:var(--ink);color:var(--ink);font-weight:600}
+.pl .ic{color:var(--muted)}
+.st-table .err-msg{font-family:var(--mono);font-size:12px;word-break:break-word}
+#moreGames{margin:10px 12px 4px}
+
+/* повтор */
+.rp{width:100%;max-width:1060px;padding:22px 24px 18px}
+.rp-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;margin-top:16px}
+.rp-main{min-width:0}
+.rp-board{width:100%;max-width:min(620px,calc(100dvh - 220px));aspect-ratio:1;margin:0 auto}
+#rpBoard{display:block;width:100%;height:100%;filter:var(--board-shadow)}
+.rp-side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.rp-players{display:grid;gap:8px}
+.rp-players li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 10px;border:var(--bw) solid var(--line);border-radius:var(--r-sm);font-size:14px}
+.rp-players li.cur{border-color:var(--ink);box-shadow:var(--sh)}
+.rp-players .nm{display:flex;flex-direction:column;min-width:0}
+.rp-players .nm small{color:var(--muted);font-size:12px;display:flex;gap:4px;align-items:center}
+.rp-players .st{font-family:var(--mono);font-size:12px;color:var(--ink-2);text-align:right;white-space:nowrap}
+.rp-now{padding:10px 12px;border-radius:var(--r-sm);background:var(--sunk);font-size:14px;min-height:44px}
+.rp-log{display:grid;gap:4px;font-size:13px;color:var(--ink-2);max-height:240px;overflow:auto;align-content:start}
+.rp-log li{display:flex;gap:8px;align-items:center}
+.rp-log li small{margin-left:auto;font-family:var(--mono);color:var(--muted)}
+.rp-ctrl{display:flex;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap}
+.rp-ctrl input[type=range]{flex:1;min-width:140px;accent-color:var(--ink)}
+.rp-pos{font-size:12px;color:var(--ink-2);white-space:nowrap}
+.rp-ctrl .seg2{margin:0}
+#rpPlay{min-width:84px}
+
+.st-tip{position:fixed;z-index:100;pointer-events:none;max-width:260px;padding:8px 10px;border-radius:var(--r-sm);background:var(--ink);color:var(--on-ink);font-size:13px;line-height:1.4;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+.st-tip.on{opacity:1;transform:none}
+.st-tip b{font-family:var(--mono)}
+
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.st-grid.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+  .st-grid.g2,.st-grid.g3{grid-template-columns:1fr}
+  .rp-body{grid-template-columns:1fr}
+  .rp-board{max-width:min(560px,100%)}
+}
+@media (max-width:640px){
+  .st-bar{height:auto;min-height:56px;flex-wrap:wrap;padding:8px 12px;row-gap:6px}
+  .st-bar .wordmark{display:none}
+  .st-main{padding:16px 16px 48px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kpi{padding:12px 14px}.kpi b{font-size:24px}
+  .st-card{padding:16px}
+  .st-sec,.st-sec h2{font-size:20px}
+  .cols{height:180px}
+  .rp{padding:16px}
+  .rp-log{max-height:140px}
+}

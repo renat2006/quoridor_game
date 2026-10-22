@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex,nofollow">
+<title>Wall Duel · статистика</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Crect width='32' height='32' rx='7' fill='%23F3EFE6'/%3E%3Cg stroke='%23191816' stroke-width='1.75'%3E%3Crect x='5' y='5' width='9' height='9' rx='2'/%3E%3Crect x='18' y='5' width='9' height='9' rx='2'/%3E%3Crect x='5' y='18' width='9' height='9' rx='2'/%3E%3Crect x='18' y='18' width='9' height='9' rx='2'/%3E%3C/g%3E%3Crect x='4' y='14.5' width='24' height='3' rx='1.5' fill='%232F6BD8' stroke='%23191816'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/stats.css">
+</head>
+<body class="st">
+
+<header class="bar st-bar">
+  <a class="brand" href="/" title="К игре"><span data-logo="26"></span><b class="wordmark">WALL DUEL</b><span class="tag">статистика</span></a>
+  <div class="bar-r">
+    <div class="seg2 hidden" id="period" role="radiogroup" aria-label="Период">
+      <button role="radio" data-d="1" aria-checked="false">24 ч</button>
+      <button role="radio" data-d="7" aria-checked="true">7 дней</button>
+      <button role="radio" data-d="30" aria-checked="false">30 дней</button>
+      <button role="radio" data-d="0" aria-checked="false">Всё</button>
+    </div>
+    <button class="ibtn" id="reload" aria-label="Обновить" title="Обновить"><i data-icon="rotate"></i></button>
+    <button class="ibtn" id="themeBtn" aria-label="Сменить тему" title="Тема"><i data-icon="theme"></i></button>
+  </div>
+</header>
+
+<main class="st-main">
+  <section class="card form-card st-login hidden" id="login">
+    <span data-logo="40"></span>
+    <h1 class="h2">Статистика игры</h1>
+    <p class="muted" id="loginText">Введите ключ дашборда (переменная STATS_KEY на сервере).</p>
+    <form id="loginForm">
+      <label class="lbl gap-t" for="key">Ключ</label>
+      <input class="input" id="key" type="password" autocomplete="current-password" required>
+      <button class="btn ink wide lg gap-t" type="submit">Войти</button>
+    </form>
+  </section>
+
+  <div id="dash" class="hidden">
+    <p class="note" id="rangeNote"></p>
+    <section class="kpis" id="kpis" aria-label="Главные цифры"></section>
+
+    <section class="st-grid g2">
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Активность по дням</h2>
+          <div class="legend"><span><i style="background:var(--c1)"></i>Посетители</span><span><i style="background:var(--c2)"></i>Партии</span></div></div>
+        <div id="daily"></div>
+      </article>
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Воронка</h2><span class="note">доля от зашедших</span></div>
+        <div id="funnel"></div>
+      </article>
+    </section>
+
+    <h2 class="st-sec">Баланс</h2>
+    <section class="st-grid g3">
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Роли: доля побед</h2></div>
+        <p class="note">Черта — сколько было бы при идеальном балансе. Только доигранные партии.</p>
+        <div class="seg2 mini" id="roleWho" role="radiogroup" aria-label="Кто играл">
+          <button role="radio" data-w="all" aria-checked="true">Все</button><button role="radio" data-w="human" aria-checked="false">Люди</button>
+        </div>
+        <div id="roles"></div>
+      </article>
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Первый ход</h2></div>
+        <p class="note">Как часто побеждает тот, кто ходит первым, по размеру поля.</p>
+        <div id="seat0"></div>
+      </article>
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Люди против ботов</h2></div>
+        <p class="note">Доля побед людей в партиях с ботами.</p>
+        <div id="vsBots"></div>
+      </article>
+    </section>
+
+    <h2 class="st-sec">Как играют</h2>
+    <section class="st-grid g3">
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Действия за ход</h2></div>
+        <p class="note">В среднем на один ход: люди и боты.</p>
+        <div id="mix"></div>
+      </article>
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Карты у людей</h2></div>
+        <p class="note">Сколько раз люди сыграли каждую карту.</p>
+        <div id="cards"></div>
+      </article>
+      <article class="card st-card">
+        <div class="st-h"><h2 class="h3">Где бросают</h2></div>
+        <p class="note">Брошенные партии по ходу, на котором из них вышли.</p>
+        <div id="abandon"></div>
+      </article>
+    </section>
+
+    <div class="st-h st-sec"><h2>Партии</h2><span class="note">нажмите на партию, чтобы посмотреть повтор</span></div>
+    <section class="card st-card st-table-wrap">
+      <table class="st-table" id="games"><thead><tr><th>Когда</th><th>Режим</th><th>Игроки</th><th>Итог</th><th class="r">Ходов</th><th class="r">Время</th><th></th></tr></thead><tbody></tbody></table>
+      <button class="btn sm hidden" id="moreGames">Показать ещё</button>
+    </section>
+
+    <h2 class="st-sec">Аудитория и настройки</h2>
+    <section class="st-grid g3">
+      <article class="card st-card"><div class="st-h"><h2 class="h3">Устройства</h2></div><div id="devices"></div>
+        <div class="st-h gap-t"><h2 class="h3">Языки</h2></div><div id="langs"></div></article>
+      <article class="card st-card"><div class="st-h"><h2 class="h3">Экраны</h2></div><p class="note">Сколько раз открывали.</p><div id="screens"></div>
+        <div class="st-h gap-t"><h2 class="h3">Откуда пришли</h2></div><div id="refs"></div></article>
+      <article class="card st-card"><div class="st-h"><h2 class="h3">С чем играют</h2></div><div id="setups"></div></article>
+    </section>
+
+    <div class="st-h st-sec"><h2>Ошибки в браузере</h2><span class="note" id="errCount"></span></div>
+    <section class="card st-card st-table-wrap">
+      <table class="st-table" id="errors"><thead><tr><th>Ошибка</th><th>Где</th><th class="r">Раз</th><th>Последняя</th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+</main>
+
+<div class="modal hidden" id="replay" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+  <div class="card rp">
+    <div class="modal-h">
+      <div><h2 class="h3" id="rpTitle">Повтор партии</h2><p class="note" id="rpMeta"></p></div>
+      <button class="ibtn" id="rpClose" aria-label="Закрыть"><i data-icon="x"></i></button>
+    </div>
+    <p class="note warn hidden" id="rpWarn"></p>
+    <div class="rp-body">
+      <div class="rp-main">
+        <div class="rp-board"><svg id="rpBoard" viewBox="0 0 636 636" role="img" aria-label="Поле в повторе"></svg></div>
+        <div class="rp-ctrl">
+          <button class="ibtn" id="rpFirst" aria-label="В начало" title="В начало (Home)"><i data-icon="again"></i></button>
+          <button class="ibtn" id="rpPrev" aria-label="Назад" title="Назад (←)"><i data-icon="arrow" style="transform:rotate(-90deg)"></i></button>
+          <button class="btn sm ink" id="rpPlay" aria-label="Пуск">Пуск</button>
+          <button class="ibtn" id="rpNext" aria-label="Вперёд" title="Вперёд (→)"><i data-icon="arrow" style="transform:rotate(90deg)"></i></button>
+          <input type="range" id="rpSeek" min="0" max="0" value="0" aria-label="Позиция в партии">
+          <span class="mono rp-pos" id="rpPos"></span>
+          <div class="seg2 mini" id="rpSpeed" role="radiogroup" aria-label="Скорость">
+            <button role="radio" data-s="1" aria-checked="true">1×</button><button role="radio" data-s="3" aria-checked="false">3×</button><button role="radio" data-s="8" aria-checked="false">8×</button>
+          </div>
+        </div>
+      </div>
+      <div class="rp-side">
+        <ol class="rp-players" id="rpPlayers"></ol>
+        <div class="rp-now" id="rpNow"></div>
+        <ol class="rp-log" id="rpLog"></ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="st-tip" id="tip" role="tooltip"></div>
+<script type="module" src="js/stats.js"></script>
+</body>
+</html>

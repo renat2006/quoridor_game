@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { newGame, act, botAct, dist, wallLegal, reach, hydrate, snapshot, cur, rebuild, SIZES, options, rotateLegal, ROLES } from '../public/js/engine.js';
+import { newGame, act, botAct, dist, wallLegal, reach, hydrate, snapshot, cur, rebuild, SIZES, options, rotateLegal, ROLES, replay } from '../public/js/engine.js';
+import { Room } from '../public/js/room.js';
 
 const seats = (n) => Array.from({ length: n }, (_, i) => ({ name: 'P' + (i + 1), bot: true }));
 // партия без бонусов и ролей; первый ход уже прошёл — у игрока полные 2 ОД
@@ -142,5 +143,19 @@ for (const size of SIZES) {
   act(g, { t: 'move', x: 4, y: 7 }); assert.equal(g.ap, 2, '+1 ОД');
   const ev = g.fx[g.fx.length - 1];
   assert.equal(ev.type, 'bonus', 'тип события не перетирается'); assert.equal(ev.bonus, 'energy');
+}
+// 10. Запись партии: зерно и действия повторяют партию точь-в-точь, в том числе добор карт из перетасованной колоды.
+for (const size of SIZES) for (const n of [2, 4]) {
+  let rec;
+  const room = new Room('T', { onRecord: (r) => { rec = r; } });
+  for (let i = 0; i < n; i++) room.sit({ token: 't' + i, name: 'P' + i, local: true });
+  room.opts.size = size; room.start(0); clearTimeout(room.timer);
+  while (!room.game.over) room.apply(room.game.turn, botAct(room.game));
+  room.afterPlay(); clearTimeout(room.timer);
+  assert.equal(rec.status, 'over');
+  const { g, bad } = replay(rec);
+  assert.equal(bad, -1, 'все действия записи проходят по правилам');
+  const sig = (x) => JSON.stringify([x.winner, x.turns, x.walls, x.players.map((p) => [p.x, p.y, p.walls, p.hand, p.role])]);
+  assert.equal(sig(g), sig(room.game), `повтор ${size}×${size} на ${n} совпадает с партией`);
 }
 console.log('engine: OK');

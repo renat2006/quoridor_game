@@ -1,6 +1,7 @@
 # systemd-сервис игры: /etc/systemd/system/wallduel.service
 # Код лежит в /opt/wallduel, запускается от отдельного пользователя wallduel и слушает только localhost —
-# наружу его выводит обратный прокси (см. Caddyfile).
+# наружу его выводит обратный прокси (см. Caddyfile). Статистика пишется в /var/lib/wallduel,
+# секреты (STATS_KEY, POSTHOG_KEY) — в /etc/wallduel.env с правами 600.
 [Unit]
 Description=WALL DUEL
 After=network.target
@@ -12,7 +13,10 @@ WorkingDirectory=/opt/wallduel
 Environment=HOST=127.0.0.1
 Environment=PORT=3050
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node /opt/wallduel/server.js
+Environment=DATA_DIR=/var/lib/wallduel
+EnvironmentFile=-/etc/wallduel.env
+StateDirectory=wallduel
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/wallduel/server.js
 Restart=always
 RestartSec=3
 NoNewPrivileges=yes
