@@ -338,13 +338,14 @@ export function seededRng(seed) {
 // В записи и повторе остаются только поля действия, остальное (подсказки бота и т. п.) отбрасывается.
 export const cleanAction = (a) => { const o = { t: a.t }; for (const k of ['x', 'y', 'o', 'i', 'c']) if (a[k] !== undefined) o[k] = a[k]; return o; };
 /* Пошаговый повтор записи { seed, opts, seats, actions: [[мс, место, действие]] }:
-   g — партия, step() применяет следующее действие и возвращает false, если оно не прошло по правилам. */
-export function replayer(rec) {
+   g — партия, step() применяет следующее действие и возвращает false, если оно не прошло по правилам;
+   rng — генератор в том же состоянии, что у оригинала, поэтому партию можно продолжить. */
+export function replayer(rec, names = null) {
   const rng = seededRng(rec.seed);
-  const g = newGame(rec.seats.map((s, i) => ({ name: s.bot ? `Бот ${i + 1}` : `Игрок ${i + 1}`, bot: !!s.bot })), rec.opts, rng);
+  const g = newGame(rec.seats.map((s, i) => ({ name: names?.[i] || (s.bot ? `Бот ${i + 1}` : `Игрок ${i + 1}`), bot: !!s.bot })), rec.opts, rng);
   let k = 0;
   return {
-    g, get k() { return k; },
+    g, rng, get k() { return k; },
     step() {
       if (k >= rec.actions.length) return false;
       const [, seat, a] = rec.actions[k];

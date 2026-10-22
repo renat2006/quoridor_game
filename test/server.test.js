@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { botAct, hydrate, replay } from '../public/js/engine.js';
-import { Room } from '../public/js/room.js';
+import { Room, GRACE } from '../public/js/room.js';
 
 // тесты поднимают сервер на свободном порту и с пустой базой статистики, чтобы не мешать запущенной игре
 process.env.PORT = '0';
@@ -112,5 +112,49 @@ assert.equal((await post('/api/e', { vid: 'abcdef123456', sid: 'sess123456', ev:
 st = await get('/api/stats?days=1');
 assert.equal(st.kpi.games, 2); assert.equal(st.kpi.visitors, 1); assert.equal(st.funnel[2].n, 1, 'посетитель доиграл партию');
 assert.equal(st.devices.phone, 1);
+
+// Устойчивость: короткие паузы на переподключение, чтобы тест шёл быстро.
+GRACE.lobby = 600; GRACE.play = 600;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const h = await client('token-hhhhhhhh'), q = await client('token-qqqqqqqq');
+h.send({ t: 'create', name: 'Хост', isPublic: false }); await h.wait((c) => c.last);
+q.send({ t: 'join', code: h.last.code, name: 'Гость' }); await h.wait((c) => c.last.seats.length === 2);
+
+// Обрыв в лобби: место держится, игрок возвращается на него с тем же токеном.
+q.ws.terminate(); await h.wait((c) => c.last.seats[1] && !c.last.seats[1].connected);
+assert.equal(h.last.seats.length, 2, 'место в лобби не освобождается сразу');
+assert.ok(h.last.seats[1].away > 0, 'клиенты знают, сколько ещё ждать');
+const q2 = await client('token-qqqqqqqq');
+await h.wait((c) => c.last.seats[1]?.connected); assert.equal(q2.last.you, 1, 'вернулся на своё место');
+
+// Посреди партии: пока идёт пауза, бот не ходит за отключившегося; после паузы — ходит.
+h.send({ t: 'start' }); await h.wait((c) => c.last.phase === 'playing');
+h.send({ t: 'end' }); await h.wait((c) => c.last.game.turn === 1);
+const ap = h.last.game.ap;
+q2.ws.terminate(); await sleep(300);
+assert.equal(h.last.game.turn, 1); assert.equal(h.last.game.ap, ap, 'в паузе бот не тратит ОД гостя');
+await h.wait((c) => c.last.game.turn === 0 || c.last.game.ap !== ap, 4000);
+const q3 = await client('token-qqqqqqqq'); await q3.wait((c) => c.last?.phase === 'playing');
+
+// Явный выход из лобби освобождает место сразу; незнакомый токен узнаёт, что комнаты нет.
+h.send({ t: 'rematch' }); await h.wait((c) => c.last.phase === 'lobby');
+q3.send({ t: 'leave' }); await h.wait((c) => c.last.seats.length === 1);
+const z = await client('token-zzzzzzzz'); await z.wait((c) => c.msgs.some((m) => m.t === 'hello'));
+assert.equal(z.msgs.find((m) => m.t === 'hello').room, null);
+for (const c of [h, q3, z]) c.ws.close();
+
+// Перезапуск сервера: комната с идущей партией сохраняется и поднимается с той же позиции.
+const live = new Room('SAVE', {});
+live.sit({ token: 'tok-1', name: 'Аня' }); live.sit({ token: 'tok-2', name: 'Боря' }); live.addBot(0);
+live.start(0); clearTimeout(live.timer);
+for (let i = 0; i < 25 && !live.game.over; i++) live.apply(live.game.turn, botAct(live.game));
+clearTimeout(live.timer);
+const back = Room.load(JSON.parse(JSON.stringify(live.save())), {});
+const pos = (r) => JSON.stringify([r.game.turn, r.game.ap, r.game.walls, r.game.players.map((p) => [p.name, p.x, p.y, p.hand, p.walls])]);
+assert.equal(pos(back), pos(live), 'партия восстановлена точно');
+assert.ok(back.seats.filter((x) => !x.bot).every((x) => !x.connected), 'люди ждут переподключения');
+assert.equal(back.sit({ token: 'tok-2' }).idx, 1, 'игрок возвращается на своё место');
+assert.deepEqual(back.rng(), live.rng(), 'генератор продолжает с того же места');
+back.destroy(); live.destroy();
 console.log('server: OK');
 server.close(); process.exit(0);

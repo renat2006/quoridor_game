@@ -112,24 +112,25 @@ const send = (ws, m) => { if (ws.readyState === 1) ws.send(JSON.stringify(m)); }
 function broadcast(entry) {
   for (const ws of entry.socks) send(ws, { t: 'room', ...entry.room.view(entry.room.idxOf(ws.token)) });
 }
+const hooks = (entry) => ({
+  onUpdate: () => broadcast(entry),
+  onEmote: (seat, e) => { for (const ws of entry.socks) send(ws, { t: 'emote', seat, e }); },
+  onRecord: (rec) => { try { tel?.game(rec, 'online'); } catch (err) { console.error('телеметрия', err); } },
+});
 function createRoom(opts) {
   const code = newCode();
   const entry = { socks: new Set(), room: null };
-  entry.room = new Room(code, {
-    ...opts,
-    onUpdate: () => broadcast(entry),
-    onEmote: (seat, e) => { for (const ws of entry.socks) send(ws, { t: 'emote', seat, e }); },
-    onRecord: (rec) => { try { tel?.game(rec, 'online'); } catch (err) { console.error('телеметрия', err); } },
-  });
+  entry.room = new Room(code, { ...opts, ...hooks(entry) });
   rooms.set(code, entry);
   return entry;
 }
-function detach(ws) {
+// left — игрок вышел сам; иначе это обрыв связи, и место за ним держится (см. GRACE в room.js)
+function detach(ws, { left = false } = {}) {
   const entry = ws.entry; if (!entry) return;
   entry.socks.delete(ws); ws.entry = null;
   if ([...entry.socks].some((s) => s.token === ws.token)) return; // тот же игрок уже переподключился
-  entry.room.drop(ws.token);
-  if (!entry.room.humans().length) { entry.room.destroy(); rooms.delete(entry.room.code); }
+  entry.room.drop(ws.token, { left });
+  if (!entry.room.seats.some((s) => !s.bot && !s.left)) { entry.room.destroy(); rooms.delete(entry.room.code); }
 }
 function attach(ws, entry, name) {
   const r = entry.room.sit({ token: ws.token, name, vid: ws.vid });
@@ -149,14 +150,16 @@ wss.on('connection', (ws) => {
       if (typeof m.token !== 'string' || m.token.length < 8 || m.token.length > 64) return;
       ws.token = m.token;
       ws.vid = typeof m.vid === 'string' && /^[a-z0-9]{6,40}$/i.test(m.vid) ? m.vid : null;
-      for (const entry of rooms.values()) if (entry.room.idxOf(ws.token) >= 0) { detach(ws); attach(ws, entry); break; }
-      return;
+      for (const entry of rooms.values()) if (entry.room.idxOf(ws.token) >= 0) { detach(ws); return attach(ws, entry); }
+      // своей комнаты нет: клиент, который считал себя в игре, покажет, что она закрылась
+      return send(ws, { t: 'hello', room: null });
     }
     if (!ws.token) return;
     const entry = ws.entry, room = entry && entry.room, me = room ? room.idxOf(ws.token) : -1;
     switch (m.t) {
+      case 'ping': return send(ws, { t: 'pong' });
       case 'list':
-        return send(ws, { t: 'list', rooms: [...rooms.values()].map((e) => e.room).filter((r) => r.isPublic && r.phase === 'lobby' && r.seats.length < 4).map((r) => r.info()) });
+        return send(ws, { t: 'list', rooms: [...rooms.values()].map((e) => e.room).filter((r) => r.isPublic && r.phase === 'lobby' && r.seats.length < 4 && r.hasConnected()).map((r) => r.info()) });
       case 'create': {
         detach(ws);
         const e = createRoom({ title: m.title, isPublic: m.isPublic !== false });
@@ -167,7 +170,7 @@ wss.on('connection', (ws) => {
         if (!e) return send(ws, { t: 'err', msg: 'Комната не найдена' });
         detach(ws); return attach(ws, e, m.name);
       }
-      case 'leave': detach(ws); return send(ws, { t: 'left' });
+      case 'leave': detach(ws, { left: true }); return send(ws, { t: 'left' });
       case 'addBot': return room && room.addBot(me);
       case 'kick': {
         if (!room) return;
@@ -192,8 +195,42 @@ wss.on('connection', (ws) => {
 
 setInterval(() => {
   for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); }
-  for (const [code, e] of rooms) if (!e.room.hasConnected() && Date.now() - e.room.lastActive > 5 * 60_000) { e.room.destroy(); rooms.delete(code); }
+  // комната, где давно нет ни одного человека на связи, закрывается
+  const now = Date.now();
+  for (const [code, e] of rooms) {
+    if (e.room.hasConnected()) { e.emptySince = 0; continue; }
+    e.emptySince ||= now;
+    if (now - e.emptySince > 5 * 60_000) { e.room.destroy(); rooms.delete(code); }
+  }
 }, 15_000);
+
+/* ---------- перезапуск без потери партий ----------
+   При остановке (выкладка, перезапуск) комнаты пишутся в файл, при старте поднимаются обратно,
+   а клиенты сами переподключаются с прежним токеном и продолжают с того же хода. */
+const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
+function saveRooms() {
+  try {
+    const list = [...rooms.values()].map((e) => e.room.save());
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(ROOMS_FILE, JSON.stringify({ at: Date.now(), rooms: list }));
+    console.log(`сохранено комнат: ${list.length}`);
+  } catch (err) { console.error('не удалось сохранить комнаты', err); }
+}
+function loadRooms() {
+  let data;
+  try { data = JSON.parse(fs.readFileSync(ROOMS_FILE, 'utf8')); fs.rmSync(ROOMS_FILE); } catch { return; }
+  if (!data || Date.now() - data.at > 15 * 60_000) return; // слишком старый снимок — игроки уже разошлись
+  let n = 0;
+  for (const d of data.rooms || []) {
+    if (rooms.has(d.code)) continue;
+    const entry = { socks: new Set(), room: null };
+    try { entry.room = Room.load(d, hooks(entry)); } catch (err) { console.error('комната', d.code, err); }
+    if (entry.room) { rooms.set(d.code, entry); n++; }
+  }
+  console.log(`восстановлено комнат: ${n}`);
+}
+loadRooms();
+for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, () => { saveRooms(); process.exit(0); });
 
 server.listen(PORT, HOST, () => {
   const port = server.address().port;

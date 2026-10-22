@@ -1,5 +1,5 @@
 import * as E from './engine.js';
-import { RemoteNet, LocalNet } from './net.js';
+import { RemoteNet, LocalNet, seat } from './net.js';
 import { sfx } from './fx.js';
 import * as A from './art.js';
 import { track } from './track.js';
@@ -66,12 +66,19 @@ function onMsg(m) {
     case 'room': onRoom(m); break;
     case 'list': renderRooms(m.rooms); break;
     case 'err': pending = false; toast(m.msg, true); sfx.play('error'); if (g) renderGame(); break;
-    case 'left': view = null; g = null; gameId = null; show('home'); history.replaceState(null, '', location.pathname); if (m.msg) toast(m.msg); break;
+    case 'left': seat.clear(); view = null; g = null; gameId = null; show('home'); history.replaceState(null, '', location.pathname); if (m.msg) toast(m.msg); break;
+    // сервер не знает нашей комнаты: её закрыли, пока нас не было
+    case 'gone':
+      seat.clear();
+      if (view && !isLocal) { view = null; g = null; gameId = null; $('#win').classList.add('hidden'); show('home'); history.replaceState(null, '', location.pathname); toast('Комната закрылась, пока вас не было', true); }
+      break;
     case 'emote': showEmote(m.seat, m.e); break;
   }
 }
 function onRoom(m) {
-  pending = false; view = m; isLocal = !!m.local;
+  pending = false; view = m; isLocal = !!m.local; view.at = Date.now();
+  if (!isLocal && net instanceof RemoteNet) seat.set(m.code, net.token);
+  tickAway();
   if (m.phase === 'lobby') {
     g = null; gameId = null; $('#win').classList.add('hidden');
     renderLobby(); show('lobby');
@@ -89,6 +96,18 @@ function onRoom(m) {
     evs.forEach((ev) => { try { playFx(ev); } catch (err) { console.error('эффект', ev, err); } });
   }
   renderGame();
+}
+
+/* Отключившиеся игроки: сервер прислал, сколько ещё их ждать; пока ждём — раз в секунду обновляем подписи. */
+const awayLeft = (s) => (s && !s.connected && !s.bot && s.away != null ? Math.max(0, Math.ceil((s.away - (Date.now() - view.at)) / 1000)) : null);
+let awayTimer = 0;
+function tickAway() {
+  clearInterval(awayTimer);
+  if (!view || isLocal || !view.seats.some((s) => awayLeft(s))) return;
+  awayTimer = setInterval(() => {
+    if (!view || !view.seats.some((s) => awayLeft(s) != null)) return clearInterval(awayTimer);
+    if (view.phase === 'lobby') renderLobby(); else if (g) renderGame();
+  }, 1000);
 }
 
 /* ---------- главная ---------- */
@@ -179,7 +198,7 @@ function renderLobby() {
       const act = host && i === v.seats.length ? `<button class="btn sm" data-addbot>${A.icon('plus', 18)}Бот</button>` : !host ? '<span class="note">ждём игрока</span>' : '';
       return `<li class="slot free">${A.shape(i, 32, { ghost: true })}<div class="nm">Свободно</div>${act}</li>`;
     }
-    const tags = (i === v.host ? `<span class="tag">${A.icon('crown', 14)}хост</span>` : '') + (s.bot ? `<span class="tag">${A.icon('bot', 14)}бот</span>` : '') + (!s.connected && !s.bot ? `<span class="tag">${A.icon('offline', 14)}офлайн</span>` : '');
+    const tags = (i === v.host ? `<span class="tag">${A.icon('crown', 14)}хост</span>` : '') + (s.bot ? `<span class="tag">${A.icon('bot', 14)}бот</span>` : '') + (!s.connected && !s.bot ? `<span class="tag">${A.icon('offline', 14)}${awayLeft(s) ? `нет связи · ждём ${awayLeft(s)} с` : 'нет связи'}</span>` : '');
     const x = host && i !== v.you ? `<button class="xbtn" data-kick="${i}" aria-label="Убрать ${esc(s.name)}">${A.icon('x')}</button>` : '<span class="pad44"></span>';
     return `<li class="slot">${A.shape(i, 32)}<div class="nm">${esc(s.name)}${i === v.you ? ' <i>· вы</i>' : ''}</div><span class="tags">${tags}</span>${x}</li>`;
   }).join('');
@@ -344,6 +363,9 @@ function renderGame() {
   const extras = [g.t.freeStep && 'бесплатный шаг', g.t.masonFree && 'бесплатная стена', g.t.freeWalls && 'стена картой', E.crossBudget(g, p) && 'можно сквозь стену'].filter(Boolean);
   let st;
   if (g.over) st = 'Партия окончена';
+  // имя ходящего уже показано рядом, поэтому здесь только состояние связи
+  else if (!myTurn && awayLeft(view.seats[p.i])) st = `нет связи · бот через ${awayLeft(view.seats[p.i])} с`;
+  else if (!myTurn && view.seats[p.i] && !view.seats[p.i].connected && !p.bot && !isLocal) st = 'нет связи · ходит бот';
   else if (!myTurn) st = p.bot || isLocal ? 'Думает…' : 'Ходит…';
   else if (mode === 'target') st = `Выберите стену для «${E.CARDS[p.hand[pendingCard]].name}»`;
   else st = `<b>${g.ap}</b> ОД${extras.length ? ' · ' + extras.join(' · ') : ''}`;
