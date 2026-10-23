@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
-import { newGame, act, botAct, dist, wallLegal, reach, hydrate, snapshot, cur, rebuild, SIZES, options, rotateLegal, ROLES, replay } from '../public/js/engine.js';
+import { newGame, act, botAct, dist, wallLegal, reach, hydrate, snapshot, cur, rebuild, SIZES, options, rotateLegal, ROLES, replay, BOT_LEVELS, freshTurn, stepBudget, wallBudget, RULES } from '../public/js/engine.js';
 import { Room } from '../public/js/room.js';
 
 const seats = (n) => Array.from({ length: n }, (_, i) => ({ name: 'P' + (i + 1), bot: true }));
-// партия без бонусов и ролей; первый ход уже прошёл — у игрока полные 2 ОД
-const plain = (n = 2, extra = {}) => { const g = newGame(seats(n), { bonus: false, roles: false, ...extra }); g.ap = 2; return g; };
+// партия без бонусов и ролей, как будто первый ход уже прошёл: у игрока все слоты; role — роль текущего игрока
+const plain = (n = 2, extra = {}, role = null) => {
+  const g = newGame(seats(n), { bonus: false, roles: false, ...extra });
+  // рука предсказуемая: с играбельной картой ход не закончится сам посреди проверки
+  g.turns = n; cur(g).role = role; cur(g).hand = ['reserve']; g.t = freshTurn(g, cur(g)); return g;
+};
 
 // 1. Боты всех уровней доигрывают партии на всех полях, правила не нарушаются.
-for (const size of SIZES) for (const n of [2, 4]) for (const level of ['easy', 'normal']) {
+for (const size of SIZES) for (const n of [2, 4]) for (const level of BOT_LEVELS) {
+  if (level === 'hard' && (n > 2 || size > 9)) continue; // сильный бот медленный: полные поля проверяет турнир (npm run bench)
   const g = newGame(seats(n), { size });
   let guard = 0;
   while (!g.over && guard++ < 3000) {
@@ -18,7 +23,7 @@ for (const size of SIZES) for (const n of [2, 4]) for (const level of ['easy', '
   assert.ok(g.over, `партия ${size}×${size} на ${n} (${level}) не закончилась`);
 }
 
-// 2. Поля и роли: старты по центру сторон, роли у всех разные; первый ход партии — 1 ОД.
+// 2. Поля и роли: старты по центру сторон, роли у всех разные; в первый ход партии стену не ставят.
 {
   const s = newGame(seats(2), { size: 7, roles: false }), l = newGame(seats(4), { size: 11 });
   assert.deepEqual([s.players[0].x, s.players[0].y], [3, 6]);
@@ -26,31 +31,32 @@ for (const size of SIZES) for (const n of [2, 4]) for (const level of ['easy', '
   assert.equal(new Set(l.players.map((p) => p.role)).size, 4);
   assert.ok(l.players.every((p) => ROLES[p.role]));
   assert.equal(s.players[0].role, null);
-  assert.equal(s.ap, 1, 'компенсация темпа: первый ход короче');
-  act(s, { t: 'end' }); assert.equal(s.ap, 3, 'на 7×7 второй игрок в первый ход получает +1 ОД');
-  act(s, { t: 'end' }); assert.equal(s.ap, 2);
+  assert.equal(options(s).wall, false, 'компенсация темпа: первый ход без стены');
+  act(s, { t: 'end' }); assert.equal(options(s).wall, true, 'у второго игрока стена есть');
 }
 
-// 3. Ход: шаг и стена стоят по 1 ОД, не больше двух стен; карта бесплатно, одна за ход.
+// 3. Ход — три слота: один шаг, одна стена, одна карта; когда делать нечего, ход заканчивается сам.
 {
-  const g = plain();
-  assert.equal(cur(g).hand.length, 3, 'две карты на старте + одна в начале хода');
-  assert.ok(act(g, { t: 'move', x: 4, y: 7 }).ok); assert.equal(g.ap, 1);
+  const g = plain(); cur(g).hand = ['reserve'];
+  assert.ok(!reach(g).has('4,6'), 'за ход только один шаг');
+  assert.ok(act(g, { t: 'move', x: 4, y: 7 }).ok);
+  assert.equal(options(g).move, false, 'второй шаг нельзя');
   assert.ok(act(g, { t: 'wall', o: 'h', x: 0, y: 2 }).ok);
-  assert.equal(g.turn, 0, 'ОД кончились, но карту ещё можно сыграть — ход не закончен');
-  assert.ok(options(g).card && !options(g).move);
-  assert.ok(act(g, { t: 'end' }).ok); assert.equal(g.turn, 1);
+  assert.equal(act(g, { t: 'wall', o: 'h', x: 2, y: 2 }).ok, false, 'вторая стена нельзя');
+  assert.equal(g.turn, 0, 'карту ещё можно сыграть — ход не закончен');
+  assert.ok(act(g, { t: 'card', c: 0 }).ok); assert.equal(g.turn, 1, 'слоты кончились — ход перешёл сам');
 }
 {
-  const g = plain(); g.ap = 3;
-  assert.ok(act(g, { t: 'wall', o: 'h', x: 0, y: 2 }).ok && act(g, { t: 'wall', o: 'h', x: 2, y: 2 }).ok);
-  assert.equal(act(g, { t: 'wall', o: 'h', x: 4, y: 2 }).ok, false, 'третья стена за ход нельзя');
-}
-{
-  const g = plain(); cur(g).hand = ['dash', 'dash', 'freeze'];
-  assert.ok(act(g, { t: 'card', c: 0 }).ok); assert.equal(g.ap, 3);
+  const g = plain(); cur(g).hand = ['dash', 'dash'];
+  assert.ok(act(g, { t: 'card', c: 0 }).ok);
   assert.equal(act(g, { t: 'card', c: 0 }).ok, false, 'вторая карта за ход нельзя');
-  assert.ok(reach(g).has('4,5'), 'с рывком дальность 3');
+  assert.ok(reach(g).has('4,6') && !reach(g).has('4,5'), 'с рывком — два шага');
+}
+{
+  // карта приходит раз в два хода
+  const g = newGame(seats(2), { bonus: false, roles: false }), h0 = g.players[0].hand.length;
+  act(g, { t: 'end' }); act(g, { t: 'end' }); assert.equal(g.players[0].hand.length, h0, 'на втором своём ходу карты нет');
+  act(g, { t: 'end' }); act(g, { t: 'end' }); assert.equal(g.players[0].hand.length, Math.min(3, h0 + 1), 'на третьем — новая');
 }
 
 // 4. Прыжок через фишку и обход по диагонали.
@@ -63,58 +69,57 @@ for (const size of SIZES) for (const n of [2, 4]) for (const level of ['easy', '
   assert.ok(!r.has('4,6') && r.has('3,7') && r.has('5,7'), 'обход по диагонали');
 }
 
-// 5. Сквозь стену: карта и Призрак.
+// 5. Роли — постоянные свойства, и ни одна не повторяет карту.
 {
-  const g = plain(); g.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }); rebuild(g);
-  assert.ok(!reach(g).has('4,7'));
-  cur(g).hand = ['phase'];
-  act(g, { t: 'card', c: 0 });
-  assert.ok(reach(g).has('4,7'), 'карта даёт пройти сквозь стену');
-  assert.ok(act(g, { t: 'move', x: 4, y: 7 }).ok); assert.equal(g.t.cross, 0);
-}
-{
-  const g = plain(); cur(g).role = 'ghost'; g.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }); rebuild(g);
-  assert.ok(act(g, { t: 'move', x: 4, y: 7 }).ok);
-  assert.equal(cur(g).ghostCd, 3, 'способность Призрака ушла на перезарядку');
-}
+  const r = plain(2, {}, 'runner');
+  assert.equal(stepBudget(r), 2, 'Бегун: второй шаг…');
+  assert.ok(act(r, { t: 'move', x: 4, y: 6 }).ok); assert.equal(wallBudget(r), 0, '…вместо стены');
+  const r2 = plain(2, {}, 'runner');
+  act(r2, { t: 'wall', o: 'h', x: 0, y: 2 }); assert.equal(stepBudget(r2), 1, 'поставил стену — шаг один');
 
-// 6. Роли.
-{
-  const g = plain(); cur(g).role = 'runner'; g.t.freeStep = true;
-  assert.ok(reach(g).has('4,5'), 'Бегун проходит 3 клетки');
-  act(g, { t: 'move', x: 4, y: 5 }); assert.equal(cur(g).runCd, 2, 'следующий бесплатный шаг — через 3 хода');
+  const a = plain(2, {}, 'architect');
+  assert.ok(act(a, { t: 'wall', o: 'h', x: 0, y: 2 }).ok && act(a, { t: 'wall', o: 'h', x: 2, y: 2 }).ok, 'Архитектор: две стены за ход');
+  assert.equal(act(a, { t: 'wall', o: 'h', x: 4, y: 2 }).ok, false);
 
-  const m = plain(); cur(m).role = 'mason'; m.t.masonFree = true;
-  assert.ok(act(m, { t: 'wall', o: 'h', x: 0, y: 2 }).ok); assert.equal(m.ap, 2, 'стена Каменщика бесплатная');
-  assert.ok(act(m, { t: 'wall', o: 'h', x: 2, y: 2 }).ok); assert.equal(m.ap, 1);
-  assert.equal(act(m, { t: 'wall', o: 'h', x: 4, y: 2 }).ok, false, 'лимит две стены и для Каменщика');
+  const gh = plain(2, {}, 'ghost'); gh.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }); rebuild(gh);
+  const stock = cur(gh).walls;
+  assert.ok(reach(gh).has('4,7'), 'Призрак проходит сквозь стену');
+  assert.ok(act(gh, { t: 'move', x: 4, y: 7 }).ok);
+  assert.equal(wallBudget(gh), 0, 'вместо своей стены'); assert.equal(cur(gh).walls, stock - RULES.ghostCost, 'и тратит стену из запаса');
 
-  const s = plain(); cur(s).role = 'sapper'; s.walls.push({ o: 'h', x: 0, y: 3, owner: 1 }, { o: 'h', x: 4, y: 3, owner: 1 }); rebuild(s);
+  const m = plain(2, {}, 'mason'); act(m, { t: 'wall', o: 'h', x: 0, y: 2 }); act(m, { t: 'end' });
+  cur(m).hand = ['demolish', 'turn'];
+  assert.equal(act(m, { t: 'card', c: 0, i: 0 }).ok, false, 'стену Каменщика не снести');
+  assert.equal(act(m, { t: 'card', c: 1, i: 0 }).ok, false, 'и не повернуть');
+
+  const s = plain(2, {}, 'sapper'); s.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }, { o: 'h', x: 0, y: 2, owner: 1 }); rebuild(s);
   const before = cur(s).walls;
-  assert.ok(act(s, { t: 'break', i: 0 }).ok); assert.equal(s.walls.length, 1); assert.equal(s.ap, 2, 'снос бесплатный');
-  assert.equal(cur(s).walls, before + 1, 'Сапёр забрал стену себе');
-  assert.equal(act(s, { t: 'break', i: 0 }).ok, false, 'перезарядка');
+  assert.equal(act(s, { t: 'break', i: 1 }).ok, false, 'Сапёр ломает только стену рядом');
+  assert.ok(act(s, { t: 'break', i: 0 }).ok); assert.equal(cur(s).walls, before + 1, 'и забирает её себе');
+  assert.equal(options(s).wall, false, 'это заменило стену в этом ходу');
 
-  const a = plain(); cur(a).role = 'architect'; a.walls.push({ o: 'h', x: 0, y: 3, owner: 1 }, { o: 'h', x: 4, y: 3, owner: 1 }); rebuild(a);
-  assert.ok(act(a, { t: 'rotate', i: 0 }).ok); assert.equal(a.walls[0].o, 'v'); assert.equal(a.ap, 2, 'поворот бесплатный');
-  assert.equal(act(a, { t: 'rotate', i: 1 }).ok, false, 'раз за ход');
-
-  const c = plain(); cur(c).role = 'gambler'; cur(c).hand = ['dash', 'freeze', 'dash'];
-  assert.ok(act(c, { t: 'card', c: 0 }).ok && act(c, { t: 'card', c: 0 }).ok, 'Картёжник играет две карты');
-  const c2 = newGame(seats(2), { roles: false }); c2.players[1].role = 'gambler';
-  act(c2, { t: 'end' }); assert.equal(c2.players[1].hand.length, 4, 'и добирает по две');
+  const c = plain(2, {}, 'gambler'); cur(c).hand = ['reserve', 'reserve'];
+  assert.ok(act(c, { t: 'card', c: 0 }).ok && act(c, { t: 'card', c: 0 }).ok, 'Картёжник играет две карты за ход');
 }
 
-// 7. Заморозка, снос и поворот картой; поворот не может закрыть путь.
+// 6. Карты: заморозка, снос, поворот, смещение, запас; поворот не может закрыть путь.
 {
   const g = plain(); cur(g).hand = ['freeze'];
   act(g, { t: 'card', c: 0 }); act(g, { t: 'end' });
-  assert.equal(g.ap, 1, 'замороженный получил 1 ОД');
+  assert.equal(options(g).move, false, 'замороженный в этот ход не шагает');
+  assert.ok(options(g).wall, 'но стену ставит');
 }
 {
   const g = plain(); g.walls.push({ o: 'h', x: 0, y: 3, owner: 1 }); rebuild(g); cur(g).hand = ['demolish'];
   assert.equal(act(g, { t: 'card', c: 0 }).ok, false, 'Сносу нужна цель');
   assert.ok(act(g, { t: 'card', c: 0, i: 0 }).ok); assert.equal(g.walls.length, 0);
+}
+{
+  const g = plain(); cur(g).hand = ['shift', 'reserve'];
+  assert.equal(act(g, { t: 'card', c: 0, x: 4, y: 3 }).ok, false, 'смещение только по своему ряду');
+  assert.ok(act(g, { t: 'card', c: 0, x: 0, y: 8 }).ok); assert.deepEqual([cur(g).x, cur(g).y], [0, 8]);
+  const w = plain(); cur(w).hand = ['reserve']; const k = cur(w).walls;
+  act(w, { t: 'card', c: 0 }); assert.equal(w.players[0].walls, k + 2, 'Запас: +2 стены');
 }
 {
   const g = plain();
@@ -140,7 +145,7 @@ for (const size of SIZES) {
 }
 {
   const g = plain(); g.bonus['4,7'] = 'energy';
-  act(g, { t: 'move', x: 4, y: 7 }); assert.equal(g.ap, 2, '+1 ОД');
+  act(g, { t: 'move', x: 4, y: 7 }); assert.equal(stepBudget(g), 1, '+шаг');
   const ev = g.fx[g.fx.length - 1];
   assert.equal(ev.type, 'bonus', 'тип события не перетирается'); assert.equal(ev.bonus, 'energy');
 }

@@ -29,7 +29,7 @@
     <div class="hero-text">
       <div class="eyebrow">Тактический лабиринт · 2–4 игрока</div>
       <h1>Дойди первым.<br>Построй стену другому.</h1>
-      <p class="lead">Два очка действия на ход: бежать или строить. Карты в руке, уникальная роль у каждого — и ни одной одинаковой партии.</p>
+      <p class="lead">Каждый ход — шаг и стена: бежать или строить. Карты-приёмы в руке, своя роль у каждого — и ни одной одинаковой партии.</p>
       <form class="stack" onsubmit="return false">
         <label class="lbl" for="name">Ваше имя</label>
         <input id="name" class="input" maxlength="14" placeholder="Как вас зовут" autocomplete="nickname">
@@ -103,8 +103,8 @@
       <div id="localSeats" class="lseats"></div>
       <div class="opt"><div><b>Поле</b><span>Малое — быстрая партия, большое — долгая</span></div><div class="seg2" id="localSize" role="radiogroup"><button type="button" role="radio" data-l="7">7×7</button><button type="button" role="radio" data-l="9">9×9</button><button type="button" role="radio" data-l="11">11×11</button></div></div>
       <div class="opt"><div><b>Роли</b><span>У каждого уникальная способность</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="localRoles" aria-label="Роли"><span></span></button></div>
-      <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, +карта, +1 ОД</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="localBonus" aria-label="Бонус-клетки"><span></span></button></div>
-      <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="localLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button></div></div>
+      <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, +карта, +шаг</span></div><button type="button" class="sw on" role="switch" aria-checked="true" id="localBonus" aria-label="Бонус-клетки"><span></span></button></div>
+      <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="localLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Средние</button><button type="button" role="radio" data-l="hard">Сильные</button></div></div>
       <div class="row-btns"><button type="button" class="btn ink grow" id="bLocalGo">Играть</button><button type="button" class="btn" data-go="home">Отмена</button></div>
     </form>
   </main>
@@ -128,9 +128,9 @@
       <div class="opts">
         <div class="opt"><div><b>Поле</b><span>Малое — быстрая партия, большое — долгая</span></div><div class="seg2" id="optSize" role="radiogroup"><button type="button" role="radio" data-l="7">7×7</button><button type="button" role="radio" data-l="9">9×9</button><button type="button" role="radio" data-l="11">11×11</button></div><em id="optSizeTxt"></em></div>
         <div class="opt"><div><b>Роли</b><span>У каждого уникальная способность</span></div><button class="sw" role="switch" id="optRoles" aria-label="Роли"><span></span></button><em id="optRolesTxt"></em></div>
-        <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, +карта, +1 ОД</span></div><button class="sw" role="switch" id="optBonus" aria-label="Бонус-клетки"><span></span></button><em id="optBonusTxt"></em></div>
+        <div class="opt"><div><b>Бонус-клетки</b><span>+2 стены, +карта, +шаг</span></div><button class="sw" role="switch" id="optBonus" aria-label="Бонус-клетки"><span></span></button><em id="optBonusTxt"></em></div>
         <div class="opt"><div><b>Видна в списке</b><span>Иначе войти можно только по коду</span></div><button class="sw" role="switch" id="optPublic" aria-label="Видна в списке"><span></span></button><em id="optPublicTxt"></em></div>
-        <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="optLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Сильные</button></div><em id="optLevelTxt"></em></div>
+        <div class="opt"><div><b>Боты</b><span>Насколько хорошо играют боты</span></div><div class="seg2" id="optLevel" role="radiogroup"><button type="button" role="radio" data-l="easy">Лёгкие</button><button type="button" role="radio" data-l="normal">Средние</button><button type="button" role="radio" data-l="hard">Сильные</button></div><em id="optLevelTxt"></em></div>
       </div>
     </section>
     <section class="lb-right">
@@ -176,7 +176,7 @@
       <div class="dock">
         <div class="tb-who" id="tcWho"></div>
         <div class="turnbar">
-          <div class="ap" id="ap" role="img" aria-label="Очки действия"></div>
+          <div class="tslots" id="ap" role="status" aria-label="Что осталось в этом ходу"></div>
           <div class="tc-status" id="tcStatus"></div>
           <button class="btn end" id="endBtn" title="Завершить ход (Enter)">Завершить</button>
         </div>
@@ -185,6 +185,7 @@
           <button data-m="wall" aria-pressed="false"><i data-icon="wall"></i><b>Стена</b><small id="aWall"></small></button>
           <button data-m="role" aria-pressed="false" id="roleBtn"><span id="roleIc"></span><b id="roleName"></b><small id="aRole"></small></button>
         </div>
+        <p class="role-hint" id="roleHint"></p>
         <div class="hand" id="hand" aria-label="Ваши карты"></div>
       </div>
       <div class="block pblock">
@@ -211,36 +212,36 @@
 <div id="rules" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesT"><div class="card rules">
   <div class="modal-h"><h1 class="h2" id="rulesT">Правила</h1><button class="ibtn" data-close aria-label="Закрыть"><i data-icon="x"></i></button></div>
   <section><h3>Цель</h3><p>Первым дойти до противоположного края поля. Ваш «дом» — край с вашей цветной кромкой: туда идут соперники. Поле бывает 7×7, 9×9 и 11×11.</p></section>
-  <section><h3>Ход</h3><p>В начале хода вы берёте карту и получаете <b>2 очка действия (ОД)</b>. Самый первый ход партии — 1 ОД.</p>
+  <section><h3>Ход</h3><p>В свой ход у вас три слота: <b>шаг</b>, <b>стена</b> и <b>карта</b>. В любом порядке, любой можно пропустить. Слоты видны над кнопками и гаснут по мере использования. Когда делать больше нечего, ход заканчивается сам. В самый первый ход партии стену не ставят.</p>
     <div class="rcards">
-      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="28"></i></span><b>Шаг — 1 ОД</b><p>На соседнюю клетку. Соседнюю фишку можно перепрыгнуть, а если за ней стена — обойти по диагонали.</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="28"></i></span><b>Стена — 1 ОД</b><p>Длиной в 2 клетки, не больше двух за ход. Полностью закрывать чей-то путь нельзя.</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="cards" data-size="28"></i></span><b>Карта — бесплатно</b><p>Одна за ход. Рука до 3 карт, соперники её не видят.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="28"></i></span><b>Шаг</b><p>На соседнюю клетку. Соседнюю фишку можно перепрыгнуть, а если за ней стена — обойти по диагонали.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="28"></i></span><b>Стена</b><p>Длиной в 2 клетки, из своего запаса. Полностью закрывать чей-то путь нельзя.</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="cards" data-size="28"></i></span><b>Карта</b><p>Новая карта приходит раз в два хода. Рука до 3 карт, соперники её не видят.</p></div>
     </div>
   </section>
-  <section><h3>Карты</h3>
+  <section><h3>Карты</h3><p>Разовые приёмы: стоит придержать их до нужного момента.</p>
     <div class="rcards six">
-      <div class="rc"><span class="rc-ic"><i data-icon="dash" data-size="24"></i></span><b>Рывок</b><p>+1 ОД в этот ход</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="dash" data-size="24"></i></span><b>Рывок</b><p>ещё один шаг в этот ход</p></div>
       <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="24"></i></span><b>Снос</b><p>убрать любую стену</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="phase" data-size="24"></i></span><b>Сквозь стену</b><p>следующий шаг может пройти сквозь стену</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="plusWall" data-size="24"></i></span><b>Кладка</b><p>бесплатная стена сверх лимита</p></div>
       <div class="rc"><span class="rc-ic"><i data-icon="rotate" data-size="24"></i></span><b>Поворот</b><p>повернуть стену на 90°</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="freeze" data-size="24"></i></span><b>Заморозка</b><p>следующий игрок получит на 1 ОД меньше</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="arrow" data-size="24" style="transform:rotate(90deg)"></i></span><b>Смещение</b><p>переставить фишку на любую свободную клетку своего ряда</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="freeze" data-size="24"></i></span><b>Заморозка</b><p>следующий игрок в свой ход не сможет шагнуть</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="plusWall" data-size="24"></i></span><b>Запас</b><p>+2 стены в запас</p></div>
     </div>
   </section>
-  <section><h3>Роли</h3><p>У каждого игрока своя роль, у всех разные. Их видно в списке игроков.</p>
+  <section><h3>Роли</h3><p>У каждого игрока своя роль, у всех разные. Роль — постоянное свойство: она меняет одно правило игры для вас на всю партию. Описание вашей роли видно под кнопками хода.</p>
     <div class="rcards six">
-      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="24"></i></span><b>Бегун</b><p>раз в 3 хода — бесплатный шаг</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="24"></i></span><b>Каменщик</b><p>раз в 2 хода — бесплатная стена</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="phase" data-size="24"></i></span><b>Призрак</b><p>раз в 3 хода шагает сквозь стену</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="24"></i></span><b>Сапёр</b><p>раз в 2 хода бесплатно ломает стену и забирает её себе</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="cards" data-size="24"></i></span><b>Картёжник</b><p>берёт по 2 карты, играет до двух за ход</p></div>
-      <div class="rc"><span class="rc-ic"><i data-icon="rotate" data-size="24"></i></span><b>Архитектор</b><p>раз за ход бесплатно поворачивает стену</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="move" data-size="24"></i></span><b>Бегун</b><p>может сделать второй шаг вместо стены</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="plusWall" data-size="24"></i></span><b>Архитектор</b><p>ставит две стены за ход</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="phase" data-size="24"></i></span><b>Призрак</b><p>может шагнуть сквозь стену вместо своей стены (тратит стену из запаса)</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="wall" data-size="24"></i></span><b>Каменщик</b><p>его стены нельзя снести, сломать или повернуть</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="break" data-size="24"></i></span><b>Сапёр</b><p>вместо стены может сломать стену рядом с собой и забрать её в запас</p></div>
+      <div class="rc"><span class="rc-ic"><i data-icon="cards" data-size="24"></i></span><b>Картёжник</b><p>берёт по 2 карты и играет две за ход</p></div>
     </div>
   </section>
-  <section><h3>Бонус-клетки</h3><p>Срабатывают, если остановиться на них, и исчезают: <b>+2 стены</b>, <b>+карта</b> или <b>+1 ОД</b> прямо сейчас.</p></section>
+  <section><h3>Бонус-клетки</h3><p>Срабатывают, если остановиться на них, и исчезают: <b>+2 стены</b>, <b>+карта</b> или <b>+шаг</b> прямо сейчас.</p></section>
   <section><h3>Онлайн</h3><p>Хост создаёт комнату, делится кодом или ссылкой и запускает игру. Можно добавить ботов. Если связь пропала, за вас походит бот, а при возврате вы продолжите с того же места.</p></section>
-  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками, <kbd>R</kbd> или правый клик поворачивают её. На телефоне касание показывает стену, а кнопка «Поставить» подтверждает. Клавиши: <kbd>M</kbd> — идти, <kbd>W</kbd> — стена, <kbd>E</kbd> — способность роли, <kbd>1</kbd>–<kbd>4</kbd> — сыграть карту, <kbd>Enter</kbd> — завершить ход.</p></section>
+  <section><h3>Управление</h3><p>Стена ставится кликом по линии между клетками, <kbd>R</kbd> или правый клик поворачивают её. На телефоне касание показывает стену, а кнопка «Поставить» подтверждает. Клавиши: <kbd>M</kbd> — идти, <kbd>W</kbd> — стена, <kbd>E</kbd> — сломать стену (Сапёр), <kbd>1</kbd>–<kbd>4</kbd> — сыграть карту, <kbd>Enter</kbd> — завершить ход.</p></section>
   <section><h3>Статистика</h3><p>Чтобы улучшать баланс, игра анонимно записывает ходы партий, открытые экраны и ошибки. Имена, адреса и cookies не сохраняются. Если в браузере включено «Не отслеживать», статистика из браузера не отправляется.</p></section>
   <button class="btn ink wide" data-close>Понятно</button>
 </div></div>

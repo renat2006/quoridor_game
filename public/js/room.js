@@ -13,7 +13,7 @@ export class Room {
     this.code = code; this.title = clean(title, 24) || 'Комната'; this.isPublic = !!isPublic;
     this.onUpdate = onUpdate; this.onEmote = onEmote; this.onRecord = onRecord; this.rec = null;
     this.seats = []; this.host = -1; this.phase = 'lobby';
-    this.opts = { bonus: true, roles: true, botLevel: 'normal', size: 9 }; this.game = null; this.timer = null; this.lastActive = Date.now();
+    this.opts = { bonus: true, roles: true, botLevel: 'hard', size: 9 }; this.game = null; this.timer = null; this.lastActive = Date.now();
     this.away = new Map(); // токен → таймер, который освободит место в лобби
   }
 
@@ -115,7 +115,7 @@ export class Room {
     const g = this.game;
     if (this.phase !== 'playing' || !g || g.turn !== idx) return { ok: false, err: 'Сейчас не ваш ход' };
     for (const k of ['x', 'y', 'i', 'c']) if (k in m && !Number.isInteger(m[k])) return { ok: false, err: 'Некорректный ход' };
-    if (!['move', 'wall', 'card', 'break', 'rotate', 'end'].includes(m.t)) return { ok: false, err: 'Неизвестная команда' };
+    if (!['move', 'wall', 'card', 'break', 'rotate', 'ability', 'end'].includes(m.t)) return { ok: false, err: 'Неизвестная команда' };
     const res = this.apply(idx, m);
     if (res.ok) this.afterPlay();
     return res;

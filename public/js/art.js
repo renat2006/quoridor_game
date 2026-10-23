@@ -44,9 +44,9 @@ const IC = {
   chat: '<path d="M5 18.5V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H8z"/><path d="M9 9.5h6M9 12.5h4"/>',
 };
 export const icon = (n, size = 20, extra = '') => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${IC[n]}</svg>`;
-export const BONUS_ICON = { wall: 'plusWall', card: 'cards', energy: 'dash' };
-export const CARD_ICON = { dash: 'dash', demolish: 'break', phase: 'phase', masonry: 'plusWall', turn: 'rotate', freeze: 'freeze' };
-export const ROLE_ICON = { runner: 'move', mason: 'wall', ghost: 'phase', sapper: 'break', gambler: 'cards', architect: 'rotate' };
+export const BONUS_ICON = { wall: 'plusWall', card: 'cards', energy: 'move' };
+export const CARD_ICON = { dash: 'dash', demolish: 'break', shift: 'arrow', reserve: 'plusWall', turn: 'rotate', freeze: 'freeze' };
+export const ROLE_ICON = { runner: 'move', mason: 'wall', ghost: 'phase', sapper: 'break', gambler: 'cards', architect: 'plusWall' };
 /* Стрелка в сторону цели: сторона 0 идёт вверх, 1 вправо, 2 вниз, 3 влево. */
 export const goalArrow = (side, size = 14) => icon('arrow', size, `style="transform:rotate(${side * 90}deg)"`);
 
@@ -131,12 +131,13 @@ function slat(o, x, y, owner, op = 1) {
   return `<g opacity="${op}"><rect x="${r.x + sh[0]}" y="${r.y + sh[1]}" width="${r.w}" height="${r.h}" rx="3" class="b-hard"/>` +
     `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="3" style="fill:var(--p${owner + 1})" class="b-line"/>${wallMark(owner, r)}</g>`;
 }
+/* breakable — подсветить стены, которые можно выбрать: true для всех или функция (номер стены) → да/нет. */
 export function wallLayer(g, { fromIndex = 1e9, breakable = false } = {}) {
   let h = '';
   g.walls.forEach((w, i) => {
-    const r = wallRect(w.o, w.x, w.y);
-    h += `<g class="wallg${i >= fromIndex ? ' fresh' : ''}${breakable ? ' breakable' : ''}" data-wall="${i}">${slat(w.o, w.x, w.y, w.owner)}` +
-      (breakable ? `<rect class="brk" x="${r.x - 7}" y="${r.y - 7}" width="${r.w + 14}" height="${r.h + 14}" rx="8"/>` : '') + '</g>';
+    const r = wallRect(w.o, w.x, w.y), b = typeof breakable === 'function' ? breakable(i) : breakable;
+    h += `<g class="wallg${i >= fromIndex ? ' fresh' : ''}${b ? ' breakable' : ''}" data-wall="${i}">${slat(w.o, w.x, w.y, w.owner)}` +
+      (b ? `<rect class="brk" x="${r.x - 7}" y="${r.y - 7}" width="${r.w + 14}" height="${r.h + 14}" rx="8"/>` : '') + '</g>';
   });
   return h;
 }

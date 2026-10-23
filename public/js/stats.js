@@ -133,13 +133,13 @@ function render(s) {
   $('#seat0').innerHTML = bars(Object.entries(s.seat0).map(([size, v]) => ({ label: `${size}×${size}`, v: v.w / v.n, max: 1, ref: v.exp / v.n,
     text: `${pct(v.w, v.n)}%<small>${v.n}</small>`, dim: v.n < 10,
     tip: `Поле ${size}×${size}: первый игрок выиграл <b>${v.w}</b> из <b>${v.n}</b>. При равных шансах — ${pct(v.exp, v.n)}%` })));
-  const LV = { easy: 'лёгкие', normal: 'сильные' };
+  const LV = { easy: 'лёгкие', normal: 'средние', hard: 'сильные' };
   $('#vsBots').innerHTML = bars(s.vsBots.sort((a, b) => a.size - b.size || a.level.localeCompare(b.level)).map((v) => ({
     label: `${LV[v.level] || v.level} · ${v.size}×${v.size}`, v: v.w / v.n, max: 1, ref: v.exp / v.n, text: `${pct(v.w, v.n)}%<small>${v.n}</small>`, dim: v.n < 10,
     tip: `Боты ${LV[v.level] || v.level}, поле ${v.size}×${v.size}: люди выиграли <b>${v.w}</b> из <b>${v.n}</b>` })), { empty: 'Люди ещё не играли с ботами' });
 
   const per = (m, key) => (m.turns ? m[key] / m.turns : 0);
-  const mixRows = [['moves', 'Шаги', 'move'], ['walls', 'Стены', 'wall'], ['cards', 'Карты', 'cards'], ['role', 'Способность роли', 'crown']];
+  const mixRows = [['moves', 'Шаги', 'move'], ['walls', 'Стены', 'wall'], ['cards', 'Карты', 'cards'], ['role', 'Срабатывания роли', 'crown']];
   const mmax = Math.max(1e-9, ...mixRows.flatMap(([key]) => [per(s.mix.human, key), per(s.mix.bot, key)]));
   $('#mix').innerHTML = s.mix.human.turns + s.mix.bot.turns === 0 ? '<p class="empty">Пока нет данных</p>' :
     `<div class="legend" style="margin-top:12px"><span><i style="background:var(--c1)"></i>Люди</span><span><i style="background:var(--c2)"></i>Боты</span></div>` +
@@ -184,11 +184,11 @@ function renderRoles() {
   const s = stats, h = roleWho === 'human';
   const rows = Object.entries(s.roles).filter(([, r]) => (h ? r.hn : r.n)).map(([key, r]) => {
     const n = h ? r.hn : r.n, w = h ? r.hw : r.w, exp = h ? r.hexp : r.exp;
-    return { key, label: r.name, n, w, exp };
+    return { key, label: r.name, n, w, exp, use: s.roles[key].use || 0 };
   }).sort((a, b) => b.w / b.n - a.w / a.n);
   $('#roles').innerHTML = bars(rows.map((r) => ({ label: r.label, icon: A.icon(A.ROLE_ICON[r.key], 16), v: r.w / r.n, max: 1, ref: r.exp / r.n,
     text: `${pct(r.w, r.n)}%<small>${r.n}</small>`, dim: r.n < 10,
-    tip: `${r.label}: <b>${r.w}</b> побед из <b>${r.n}</b>. При идеальном балансе — ${pct(r.exp, r.n)}%${r.n < 10 ? '<br>Мало партий: цифра пока шумная' : ''}` })), { empty: 'Пока нет доигранных партий с ролями' });
+    tip: `${r.label}: <b>${r.w}</b> побед из <b>${r.n}</b>. При идеальном балансе — ${pct(r.exp, r.n)}%. Роль сработала <b>${(r.use / r.n).toFixed(1)}</b> раза за партию${r.n < 10 ? '<br>Мало партий: цифра пока шумная' : ''}` })), { empty: 'Пока нет доигранных партий с ролями' });
 }
 $('#roleWho').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; roleWho = b.dataset.w; setSeg($('#roleWho'), 'w', roleWho); renderRoles(); };
 
@@ -205,7 +205,7 @@ async function loadGames(reset) {
   $('#games tbody').insertAdjacentHTML('beforeend', games.map(gameRow).join(''));
 }
 $('#moreGames').onclick = () => loadGames(false);
-const LVL = { easy: 'лёгкий', normal: 'сильный' };
+const LVL = { easy: 'лёгкий', normal: 'средний', hard: 'сильный' };
 function seatLabel(p, i) { return p.bot ? `Бот ${i + 1}${p.level ? ` · ${LVL[p.level] || p.level}` : ''}` : `Игрок ${i + 1}`; }
 function gameRow(g) {
   const who = g.players.map((p, i) => `<span class="pl${g.winner === i ? ' win' : ''}" title="${esc(seatLabel(p, i) + (p.role ? ' · ' + E.ROLES[p.role].name : ''))}">${A.shape(i, 14)}${A.icon(p.bot ? 'bot' : 'people', 13)}${p.role ? A.icon(A.ROLE_ICON[p.role], 13) : ''}</span>`).join('');

@@ -209,12 +209,18 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 .tb-who i{font-style:normal;font-size:13px;color:var(--muted)}
 .role{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:12px;font-weight:600;color:var(--muted);padding:3px 8px;border-radius:999px;border:1px dashed var(--line-2);cursor:help;white-space:nowrap}
 .role.ok{color:var(--ink);border-style:solid;border-color:var(--ink)}
-.ap{display:flex;gap:4px;flex:none}
-.ap i{width:16px;height:16px;border-radius:50%;border:var(--bw) solid var(--ink);display:flex;align-items:center;justify-content:center}
-.ap i.on{background:var(--ink)}
-.ap i.free{border-style:dashed;width:20px;height:20px}
+/* слоты хода: шаг, стена, карта — горят, пока доступны, и гаснут, когда использованы */
+.tslots{display:flex;gap:6px;flex:1 1 100%;min-width:0}
+.tslot{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 8px 0 6px;border-radius:999px;border:var(--bw) solid var(--ink);background:var(--surface);font-size:13px;font-weight:600;white-space:nowrap}
+.tslot.used{border:var(--bw) dashed var(--line-2);background:transparent;color:var(--muted);text-decoration:line-through;text-decoration-thickness:1.5px}
+.tslot.off{border:var(--bw) dashed var(--line-2);background:transparent;color:var(--muted)}
+.tslot small{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--muted)}
+.role-hint{margin:0;font-size:13px;line-height:1.4;color:var(--ink-2);display:flex;gap:6px;align-items:flex-start}
+.role-hint:empty{display:none}
+.role-hint .ic{margin-top:1px;color:var(--muted)}
 .end{flex:none;height:36px;padding:0 14px;font-size:14px}
 .tc-status{flex:1;min-width:0;font-size:13px;line-height:1.35;color:var(--ink-2)}
+.turnbar{flex-wrap:wrap}
 .tc-status b{font-family:var(--mono)}
 .acts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .acts.no-role{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -227,6 +233,8 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
 .acts button[aria-pressed=true]{background:var(--ink);color:var(--on-ink);transform:translateY(2px);box-shadow:0 0 0 var(--hard)}
 .acts button[aria-pressed=true] small{color:var(--on-ink);opacity:.7}
 .acts button:disabled{border:var(--bw) dashed var(--line-2);background:transparent;color:var(--muted);box-shadow:none}
+/* способность роли готова — зелёная точка у названия */
+#roleBtn.ready b::after{content:'';display:inline-block;width:7px;height:7px;margin-left:6px;border-radius:50%;background:var(--p4);vertical-align:middle}
 .hand{display:flex;flex-wrap:wrap;gap:6px}
 .hand .note{margin:0;font-size:12px}
 .hcard{height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 8px;border-radius:999px;border:var(--bw) solid var(--ink);background:var(--bg);font-size:13px;transition:background .12s,transform .08s}
@@ -382,7 +390,7 @@ code,kbd{font-family:var(--mono);font-size:.88em;background:var(--sunk);border:1
   .panel{display:block;position:static;flex:none;max-height:none;overflow:visible}
   /* док: [Идти][Стена][Роль] [Завершить] / карты ровной сеткой */
   .dock{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"acts end" "hand hand";gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;border-width:var(--bw) 0 0;box-shadow:none;background:var(--surface)}
-  .tb-who,.tc-status,.ap{display:none}
+  .tb-who,.tc-status,.tslots,.role-hint{display:none}
   .turnbar{display:contents}
   .end{grid-area:end;height:48px;padding:0 16px;font-size:15px}
   .acts{grid-area:acts;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-columns:none;gap:6px}

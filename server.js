@@ -182,7 +182,7 @@ wss.on('connection', (ws) => {
       case 'start': return room && room.start(me);
       case 'rematch': return room && room.rematch(me);
       case 'emote': return room && room.emote(me, m.e);
-      case 'move': case 'wall': case 'card': case 'break': case 'rotate': case 'end': {
+      case 'move': case 'wall': case 'card': case 'break': case 'rotate': case 'ability': case 'end': {
         if (!room) return;
         const r = room.play(me, m);
         if (!r.ok) send(ws, { t: 'err', msg: r.err });

@@ -59,7 +59,7 @@ assert.ok(b.last.game.players[1].hand.every(Boolean) && b.last.game.players[0].h
 assert.equal(a.last.game.deck, undefined, 'колода не уходит клиентам');
 
 // Играем: каждый ходит по своему снимку (со своей рукой), пока кто-то не победит.
-const stamp = (c) => { const g = c.last.game; return `${g.turns}:${g.turn}:${g.ap}:${g.fxSeq}:${c.last.phase}`; };
+const stamp = (c) => { const g = c.last.game; return `${g.turns}:${g.turn}:${JSON.stringify(g.t)}:${g.fxSeq}:${c.last.phase}`; };
 let guard = 0;
 while (a.last.phase === 'playing' && guard++ < 600) {
   const who = a.last.game.turn === 0 ? a : b, before = stamp(a);
@@ -130,10 +130,10 @@ await h.wait((c) => c.last.seats[1]?.connected); assert.equal(q2.last.you, 1, '�
 // Посреди партии: пока идёт пауза, бот не ходит за отключившегося; после паузы — ходит.
 h.send({ t: 'start' }); await h.wait((c) => c.last.phase === 'playing');
 h.send({ t: 'end' }); await h.wait((c) => c.last.game.turn === 1);
-const ap = h.last.game.ap;
+const slots = JSON.stringify(h.last.game.t), seq = h.last.game.fxSeq;
 q2.ws.terminate(); await sleep(300);
-assert.equal(h.last.game.turn, 1); assert.equal(h.last.game.ap, ap, 'в паузе бот не тратит ОД гостя');
-await h.wait((c) => c.last.game.turn === 0 || c.last.game.ap !== ap, 4000);
+assert.equal(h.last.game.turn, 1); assert.equal(h.last.game.fxSeq, seq, 'в паузе бот не ходит за гостя');
+await h.wait((c) => c.last.game.turn === 0 || c.last.game.fxSeq !== seq || JSON.stringify(c.last.game.t) !== slots, 4000);
 const q3 = await client('token-qqqqqqqq'); await q3.wait((c) => c.last?.phase === 'playing');
 
 // Явный выход из лобби освобождает место сразу; незнакомый токен узнаёт, что комнаты нет.
@@ -150,7 +150,7 @@ live.start(0); clearTimeout(live.timer);
 for (let i = 0; i < 25 && !live.game.over; i++) live.apply(live.game.turn, botAct(live.game));
 clearTimeout(live.timer);
 const back = Room.load(JSON.parse(JSON.stringify(live.save())), {});
-const pos = (r) => JSON.stringify([r.game.turn, r.game.ap, r.game.walls, r.game.players.map((p) => [p.name, p.x, p.y, p.hand, p.walls])]);
+const pos = (r) => JSON.stringify([r.game.turn, r.game.t, r.game.walls, r.game.players.map((p) => [p.name, p.x, p.y, p.hand, p.walls])]);
 assert.equal(pos(back), pos(live), 'партия восстановлена точно');
 assert.ok(back.seats.filter((x) => !x.bot).every((x) => !x.connected), 'люди ждут переподключения');
 assert.equal(back.sit({ token: 'tok-2' }).idx, 1, 'игрок возвращается на своё место');

@@ -95,13 +95,13 @@ export class LocalNet {
     this.seats = seats; this.opts = opts;
     this.room?.destroy();
     this.room = new Room('LOCAL', { title: 'Локальная игра', isPublic: false, onUpdate: () => this.emit(), onRecord: trackGame });
-    this.room.opts = { bonus: opts.bonus !== false, roles: opts.roles !== false, botLevel: opts.botLevel || 'normal', size: opts.size || 9 };
+    this.room.opts = { bonus: opts.bonus !== false, roles: opts.roles !== false, botLevel: opts.botLevel || 'hard', size: opts.size || 9 };
     seats.forEach((s, i) => this.room.sit({ token: 'l' + i, name: s.name, bot: s.bot, local: !s.bot }));
     this.room.host = 0; this.room.start(0);
   }
   send(m) {
     const r = this.room; if (!r) return;
-    if (['move', 'wall', 'card', 'break', 'rotate', 'end'].includes(m.t)) {
+    if (['move', 'wall', 'card', 'break', 'rotate', 'ability', 'end'].includes(m.t)) {
       const g = r.game; if (!g || r.seats[g.turn].bot) return;
       const res = r.play(g.turn, m);
       if (!res.ok) this.onmsg({ t: 'err', msg: res.err });

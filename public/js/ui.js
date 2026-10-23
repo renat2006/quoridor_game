@@ -12,7 +12,7 @@ const { cx, cy, S, GP, PAD, P } = A;
 let net = null, view = null, g = null, gameId = null, seen = 0;
 let mode = 'move', preview = null, turnKey = '', prevWalls = 0, pending = false, lastPtr = 'mouse';
 let isLocal = false, wasOnline = false, listTimer = 0, pendingCard = null;
-const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, roles: true, botLevel: 'normal', size: 9 };
+const localCfg = { n: 2, names: ['Игрок 1', 'Игрок 2', 'Игрок 3', 'Игрок 4'], bot: [false, true, true, true], bonus: true, roles: true, botLevel: 'hard', size: 9 };
 const setSeg = (el, val) => el.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.l === val));
 
 /* ---------- тема, иконки, мелочи ---------- */
@@ -210,8 +210,8 @@ function renderLobby() {
   $('#optRolesTxt').textContent = host ? '' : (v.opts.roles !== false ? 'Включены' : 'Выключены');
   $('#optBonusTxt').textContent = host ? '' : (v.opts.bonus ? 'Включены' : 'Выключены');
   $('#optPublicTxt').textContent = host ? '' : (v.isPublic ? 'Видна' : 'Только по коду');
-  setSeg($('#optLevel'), v.opts.botLevel || 'normal'); $('#optLevel').classList.toggle('hidden', !host);
-  $('#optLevelTxt').textContent = host ? '' : { easy: 'Лёгкие', normal: 'Сильные' }[v.opts.botLevel] || 'Сильные';
+  setSeg($('#optLevel'), v.opts.botLevel || 'hard'); $('#optLevel').classList.toggle('hidden', !host);
+  $('#optLevelTxt').textContent = host ? '' : { easy: 'Лёгкие', normal: 'Средние', hard: 'Сильные' }[v.opts.botLevel] || 'Сильные';
   setSeg($('#optSize'), String(v.opts.size || 9)); $('#optSize').classList.toggle('hidden', !host);
   $('#optSizeTxt').textContent = host ? '' : `${v.opts.size || 9}×${v.opts.size || 9}`;
   $('#lbStart').classList.toggle('hidden', !host); $('#lbWait').classList.toggle('hidden', host);
@@ -245,10 +245,15 @@ function drawDynamic() {
   $('#goal').innerHTML = g.over ? '' : A.goalLayer(g, g.turn);
   $('#bonuses').innerHTML = A.bonusLayer(g);
   $('#slots').innerHTML = my && mode === 'wall' ? A.slotLayer(g.size) : '';
-  $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: my && (mode === 'role' || mode === 'target') });
+  // какие стены можно выбрать: для Сапёра — только рядом с ним, для карт — подходящие для этой карты
+  const pc = mode === 'target' ? p.hand[pendingCard] : null;
+  const pick = !my ? false : mode === 'role' ? (i) => E.wallNear(g, i, p) && !E.sturdy(g, i)
+    : pc === 'demolish' ? (i) => !E.sturdy(g, i) : pc === 'turn' ? (i) => E.rotateLegal(g, i).ok : false;
+  $('#walls').innerHTML = A.wallLayer(g, { fromIndex: prevWalls, breakable: pick });
   prevWalls = g.walls.length;
   let o = '';
   if (my && mode === 'move') o = A.hintLayer(g, p, E.reach(g, p));
+  else if (my && pc === 'shift') o = A.hintLayer(g, p, new Map(E.shiftCells(g, p).map(([x, y]) => [`${x},${y}`, '⇄'])));
   else if (my && mode === 'wall' && preview) o = A.previewLayer(preview, E.wallLegal(g, preview.o, preview.x, preview.y).ok, p);
   $('#overlay').innerHTML = o;
   g.players.forEach((q) => {
@@ -256,7 +261,7 @@ function drawDynamic() {
     el.style.transform = `translate(${cx(q.x) + S / 2}px,${cy(q.y) + S / 2}px)`;
     el.classList.toggle('turn', q.i === g.turn && !g.over);
     const fz = el.querySelector('.fz'), had = el.classList.contains('frozen');
-    if ((q.frozen > 0) !== had) { el.classList.toggle('frozen', q.frozen > 0); fz.innerHTML = q.frozen > 0 ? A.frozenMark() : ''; }
+    if (!!q.frozen !== had) { el.classList.toggle('frozen', !!q.frozen); fz.innerHTML = q.frozen ? A.frozenMark() : ''; }
   });
 }
 
@@ -280,7 +285,7 @@ function playFx(e) {
       if (e.p !== view.you || isLocal) toast(`${pl.name} играет «${E.CARDS[e.card].name}»`);
       break;
     case 'bonus': sfx.play('bonus'); toast(`${pl.name}: ${E.BONUS[e.bonus]}`); break;
-    case 'frozen': sfx.play('freeze'); toast(`${pl.name} заморожен: в этот ход 1 ОД`); break;
+    case 'frozen': sfx.play('freeze'); toast(`${pl.name} заморожен: в этот ход без шага`); break;
     case 'win': sfx.play('win'); fillGoal(e.p); setTimeout(() => showWin(e.p), 1300); break;
   }
 }
@@ -320,13 +325,19 @@ function exitGame(force) {
 /* ---------- панель партии ---------- */
 const canAct = () => !!g && !!view && !g.over && !pending && view.you === g.turn;
 const progress = (q) => Math.max(0, Math.min(1, 1 - E.dist(g, q) / (g.size - 1)));
-const cardLimit = (q) => (q.role === 'gambler' ? E.RULES.gamblerCards : 1);
-const ACTIVE_ROLE = { sapper: { name: 'Сломать', act: 'break' }, architect: { name: 'Поворот', act: 'rotate' } };
-/* Готова ли способность роли (перезарядки хранятся в счётчиках игрока). */
-function roleState(q) {
-  const ready = { runner: !(q.runCd > 0), mason: !(q.masonCd > 0), ghost: !(q.ghostCd > 0), sapper: !(q.sapCd > 0), gambler: true, architect: true }[q.role];
-  const left = { runner: q.runCd, mason: q.masonCd, ghost: q.ghostCd, sapper: q.sapCd }[q.role] || 0;
-  return { ready, text: ready ? 'готова' : `через ${left} ${plural(left, 'ход', 'хода', 'ходов')}` };
+/* Что осталось в ходу: три слота — шаг, стена, карта. Возвращает и разметку слотов, и короткий текст. */
+function turnSlots(p, o) {
+  const t = g.t, steps = E.stepBudget(g), walls = E.wallBudget(g);
+  const hasCard = p.hand.length > 0, cardsLeft = t.cardCap - t.cards;
+  const slot = (ic, name, state, n = 0, tip = '') => `<span class="tslot ${state}" title="${esc(tip || name)}">${A.icon(ic, 14)}${name}${n > 1 ? `<small>×${n}</small>` : ''}</span>`;
+  const stepState = t.stepCap === 0 ? 'off' : steps > 0 && o.move ? 'on' : 'used';
+  const wallState = t.wallCap === 0 ? 'off' : (walls > 0 && (o.wall || o.brk)) ? 'on' : walls > 0 && p.walls === 0 ? 'off' : 'used';
+  const cardState = !hasCard ? 'off' : cardsLeft > 0 && o.card ? 'on' : 'used';
+  const html = slot('move', 'Шаг', stepState, steps, t.stepCap === 0 ? 'Заморожены: в этот ход без шага' : 'Один шаг за ход') +
+    slot('wall', 'Стена', wallState, walls, t.wallCap === 0 ? 'В самый первый ход партии стену не ставят' : p.walls === 0 ? 'Стены в запасе кончились' : 'Одна стена за ход') +
+    slot('cards', 'Карта', cardState, cardsLeft, hasCard ? 'Одна карта за ход' : 'Карт нет: новая приходит раз в два хода');
+  const left = [stepState === 'on' && 'шаг', wallState === 'on' && (o.brk && !o.wall ? 'сломать стену' : 'стена'), cardState === 'on' && 'карта'].filter(Boolean);
+  return { html, text: left.length ? `Осталось: ${left.join(' · ')}` : 'Ход окончен' };
 }
 function playerInfo(q) {
   const off = !isLocal && view.seats[q.i] && !view.seats[q.i].connected && !q.bot;
@@ -354,51 +365,49 @@ function renderGame() {
   const key = `${g.id}:${g.turns}:${g.turn}`;
   if (key !== turnKey) { turnKey = key; preview = null; pendingCard = null; mode = 'move'; if (myTurn && !isLocal) sfx.play('turn'); }
   const o = myTurn ? E.options(g) : {};
-  if (myTurn && mode !== 'target' && !((mode === 'move' && o.move) || (mode === 'wall' && o.wall) || (mode === 'role' && (o.brk || o.rot))))
-    mode = o.move ? 'move' : o.wall ? 'wall' : o.brk || o.rot ? 'role' : 'none';
+  if (myTurn && mode !== 'target' && !((mode === 'move' && o.move) || (mode === 'wall' && o.wall) || (mode === 'role' && o.brk)))
+    mode = o.move ? 'move' : o.wall ? 'wall' : o.brk ? 'role' : 'none';
 
-  const rs0 = p.role ? roleState(p) : null;
   $('#tcWho').innerHTML = `${A.shape(p.i, 22)}<span class="nm">${esc(p.name)}</span>${myTurn && !isLocal ? '<i>вы</i>' : ''}` +
-    (p.role ? `<span class="role${rs0.ready ? ' ok' : ''}" title="${esc(E.ROLES[p.role].name + ': ' + E.ROLES[p.role].text + ' — ' + rs0.text)}">${A.icon(A.ROLE_ICON[p.role], 13)}${E.ROLES[p.role].name}</span>` : '');
-  const extras = [g.t.freeStep && 'бесплатный шаг', g.t.masonFree && 'бесплатная стена', g.t.freeWalls && 'стена картой', E.crossBudget(g, p) && 'можно сквозь стену'].filter(Boolean);
+    (p.role ? `<span class="role ok" title="${esc(E.ROLES[p.role].name + ': ' + E.ROLES[p.role].text)}">${A.icon(A.ROLE_ICON[p.role], 13)}${E.ROLES[p.role].name}</span>` : '');
+  const slots = turnSlots(p, myTurn ? o : E.options(g));
   let st;
   if (g.over) st = 'Партия окончена';
   // имя ходящего уже показано рядом, поэтому здесь только состояние связи
   else if (!myTurn && awayLeft(view.seats[p.i])) st = `нет связи · бот через ${awayLeft(view.seats[p.i])} с`;
   else if (!myTurn && view.seats[p.i] && !view.seats[p.i].connected && !p.bot && !isLocal) st = 'нет связи · ходит бот';
   else if (!myTurn) st = p.bot || isLocal ? 'Думает…' : 'Ходит…';
-  else if (mode === 'target') st = `Выберите стену для «${E.CARDS[p.hand[pendingCard]].name}»`;
-  else st = `<b>${g.ap}</b> ОД${extras.length ? ' · ' + extras.join(' · ') : ''}`;
+  else if (mode === 'target') st = E.CARDS[p.hand[pendingCard]].target === 'cell' ? 'Выберите клетку своего ряда' : `Выберите стену для «${E.CARDS[p.hand[pendingCard]].name}»`;
+  else st = o.card && !o.move && !o.wall && !o.brk ? 'Можно сыграть карту — или завершить ход' : slots.text;
   $('#tcStatus').innerHTML = st;
 
-  // очки действия: полные кружки — ОД, со значком — бесплатные действия этого хода
-  const pips = [];
-  for (let k = 0; k < Math.max(g.ap, 2); k++) pips.push(`<i class="${k < g.ap ? 'on' : ''}"></i>`);
-  if (g.t.freeStep) pips.push(`<i class="free" title="Бесплатный шаг">${A.icon('move', 12)}</i>`);
-  if (g.t.masonFree) pips.push(`<i class="free" title="Бесплатная стена">${A.icon('wall', 12)}</i>`);
-  $('#ap').innerHTML = pips.join(''); $('#ap').setAttribute('aria-label', `Очки действия: ${g.ap}`);
+  $('#ap').innerHTML = slots.html;
   $('#endBtn').disabled = !myTurn || pending;
 
-  const rs = rs0;
-  const activeRole = ACTIVE_ROLE[p.role];
-  $('#roleBtn').classList.toggle('hidden', !activeRole);
-  $('#acts').classList.toggle('no-role', !activeRole);
-  if (activeRole) { $('#roleIc').innerHTML = A.icon(A.ROLE_ICON[p.role], 20); $('#roleName').textContent = activeRole.name; $('#aRole').textContent = rs.ready ? 'бесплатно' : rs.text; $('#roleBtn').title = `${activeRole.name}: ${$('#aRole').textContent}`; }
-  $('#aMove').textContent = `до ${E.stepBudget(g)}`;
+  // отдельная кнопка нужна только Сапёру (выбрать стену рядом); остальные роли действуют сами
+  const sap = p.role === 'sapper';
+  $('#roleBtn').classList.toggle('hidden', !sap);
+  $('#acts').classList.toggle('no-role', !sap);
+  if (sap) {
+    $('#roleIc').innerHTML = A.icon('break', 20); $('#roleName').textContent = 'Сломать'; $('#aRole').textContent = 'вместо стены';
+    $('#roleBtn').title = `Сапёр: ${E.ROLES.sapper.text} (E)`;
+  }
+  $('#roleHint').innerHTML = p.role ? `${A.icon(A.ROLE_ICON[p.role], 14)}<span><b>${E.ROLES[p.role].name}.</b> ${E.ROLES[p.role].text}</span>` : '';
+  $('#aMove').textContent = E.stepBudget(g) > 1 ? `×${E.stepBudget(g)}` : '';
   $('#aWall').textContent = `${p.walls} шт.`;
   $$('#acts button').forEach((b) => {
     const m = b.dataset.m;
-    b.disabled = !myTurn || pending || (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'role' && !(o.brk || o.rot));
+    b.disabled = !myTurn || pending || (m === 'move' && !o.move) || (m === 'wall' && !o.wall) || (m === 'role' && !o.brk);
     b.setAttribute('aria-pressed', myTurn && mode === m);
   });
 
   // рука: свои карты видны всегда, чужие — только количество
   const owner = view.you >= 0 ? g.players[view.you] : null, hand = owner ? owner.hand : [];
-  const canCard = myTurn && !pending && g.t.cardsPlayed < cardLimit(p);
+  const canCard = myTurn && !pending && g.t.cardsPlayed < E.cardLimit(g);
   $('#hand').innerHTML = hand.length ? hand.map((c, i) => `<button class="hcard${mode === 'target' && pendingCard === i ? ' sel' : ''}" data-c="${i}" ${canCard ? '' : 'disabled'} title="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}" aria-label="${esc(E.CARDS[c].name + ': ' + E.CARDS[c].text)}">
       ${A.icon(A.CARD_ICON[c], 18)}<b>${E.CARDS[c].name}</b></button>`).join('')
     : `<p class="note">${owner ? 'Карт нет — новая придёт в начале хода' : 'Карты видны только игрокам'}</p>`;
-  $('#hand').classList.toggle('used', !!(myTurn && g.t.cardsPlayed >= cardLimit(p)));
+  $('#hand').classList.toggle('used', !!(myTurn && g.t.cardsPlayed >= E.cardLimit(g)));
 
   const coarse = matchMedia('(pointer:coarse)').matches;
   let hint, ic = 'move';
@@ -406,11 +415,11 @@ function renderGame() {
   else if (!myTurn) hint = isLocal ? 'Ходит бот…' : `Ждём ход игрока ${esc(p.name)}…`;
   else if (mode === 'move') hint = 'Выберите клетку: цифра — сколько шагов. Можно шагнуть и потом поставить стену.';
   else if (mode === 'wall') { hint = coarse ? 'Коснитесь линии между клетками, затем «Поставить».' : 'Наведите на точку между клетками и кликните. <kbd>R</kbd> или правый клик — повернуть.'; ic = 'wall'; }
-  else if (mode === 'role') { hint = p.role === 'sapper' ? 'Выберите стену, которую сломать.' : 'Выберите стену, которую повернуть.'; ic = A.ROLE_ICON[p.role]; }
-  else if (mode === 'target') { hint = `«${E.CARDS[p.hand[pendingCard]].name}»: выберите стену на поле. <kbd>Esc</kbd> — отмена.`; ic = A.CARD_ICON[p.hand[pendingCard]]; }
+  else if (mode === 'role') { hint = 'Выберите подсвеченную стену рядом с собой — она вернётся вам в запас.'; ic = 'break'; }
+  else if (mode === 'target') { hint = `«${E.CARDS[p.hand[pendingCard]].name}»: выберите ${E.CARDS[p.hand[pendingCard]].target === 'cell' ? 'клетку своего ряда' : 'стену'} на поле. <kbd>Esc</kbd> — отмена.`; ic = A.CARD_ICON[p.hand[pendingCard]]; }
   else { hint = 'Действий не осталось — завершите ход.'; ic = 'check'; }
   $('#hint').innerHTML = `${A.icon(ic, 18)}<span>${hint}</span>`;
-  const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? `<b>${g.ap}</b> ОД · коснитесь линии между клетками` : mode === 'role' || mode === 'target' ? `<b>${g.ap}</b> ОД · коснитесь стены на поле` : st;
+  const mtxt = !myTurn || g.over ? st : mode === 'wall' && !preview ? 'коснитесь линии между клетками' : mode === 'role' ? 'коснитесь стены рядом' : st;
   $('#mstatus').innerHTML = `${A.shape(p.i, 16)}<b>${esc(p.name)}</b><span>· ${mtxt}</span>`;
 
   $('#log').innerHTML = g.log.slice(0, 6).map((l) => `<li>${l.p >= 0 ? A.shape(l.p, 14) : '<span></span>'}<span>${esc(l.t)}</span><small>${l.n}</small></li>`).join('');
@@ -460,8 +469,11 @@ function placePreview() {
 }
 board.addEventListener('click', (e) => {
   if (!canAct()) return;
-  if (mode === 'move') {
-    const c = e.target.closest('[data-cell]'); if (c) { const [x, y] = c.dataset.cell.split(',').map(Number); send({ t: 'move', x, y }); }
+  const pc = mode === 'target' ? E.cur(g).hand[pendingCard] : null;
+  if (mode === 'move' || pc === 'shift') {
+    const c = e.target.closest('[data-cell]'); if (!c) return;
+    const [x, y] = c.dataset.cell.split(',').map(Number);
+    if (pc === 'shift') { const card = pendingCard; pendingCard = null; mode = 'move'; send({ t: 'card', c: card, x, y }); } else send({ t: 'move', x, y });
   } else if (mode === 'wall') {
     if (lastPtr === 'touch') { preview = wallAt(e); renderGame(); return; }
     if (!preview) preview = wallAt(e);
@@ -470,18 +482,22 @@ board.addEventListener('click', (e) => {
     const c = e.target.closest('[data-wall]'); if (!c) return;
     const i = +c.dataset.wall, p = E.cur(g);
     if (mode === 'target') { const card = pendingCard; pendingCard = null; mode = 'move'; send({ t: 'card', c: card, i }); }
-    else send({ t: ACTIVE_ROLE[p.role].act, i });
+    else send({ t: 'break', i });
   }
 });
 $('#cfRot').onclick = rotatePreview;
 $('#cfNo').onclick = () => { preview = null; renderGame(); };
 $('#cfYes').onclick = () => { if (preview) placePreview(); };
-function setMode(m) { if (!canAct()) return; const b = $(`#acts [data-m=${m}]`); if (!b || b.disabled || b.classList.contains('hidden')) return; mode = m; preview = null; forcedO = null; pendingCard = null; renderGame(); }
+function setMode(m) {
+  if (!canAct()) return;
+  const b = $(`#acts [data-m=${m}]`); if (!b || b.disabled || b.classList.contains('hidden')) return;
+  mode = m; preview = null; forcedO = null; pendingCard = null; renderGame();
+}
 function playCard(i) {
   if (!canAct()) return;
   const c = E.cur(g).hand[i]; if (!c) return;
-  if (E.CARDS[c].target === 'wall') {
-    if (!g.walls.length) return toast('На поле пока нет стен', true);
+  if (E.CARDS[c].target) {
+    if (E.CARDS[c].target === 'wall' && !g.walls.length) return toast('На поле пока нет стен', true);
     if (mode === 'target' && pendingCard === i) { pendingCard = null; mode = 'move'; } else { pendingCard = i; mode = 'target'; preview = null; }
     renderGame();
   } else send({ t: 'card', c: i });

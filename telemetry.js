@@ -88,7 +88,6 @@ export function summarize(rec) {
     if (a.t === 'wall') q.walls++;
     if (a.t === 'card') q.cards[card] = (q.cards[card] || 0) + 1;
     if (a.t === 'break') q.breaks++;
-    if (a.t === 'rotate') q.rotates++;
     if (g.turn !== seat || g.over) { // ход этого игрока закончился
       q.turns++;
       if (!q.bot) q.think.push(Math.max(0, ms - turnStart));
@@ -105,7 +104,8 @@ export function summarize(rec) {
     // насколько близкой была партия: сколько клеток оставалось ближайшему проигравшему
     margin: g.over ? Math.min(...g.players.filter((p) => p.i !== g.winner).map((p) => dist(g, p))) : null,
     vids: [...new Set(rec.seats.map((s) => s.vid).filter(Boolean))],
-    players: per.map((q) => ({ ...q, think: q.think.length ? Math.round(median(q.think)) : null })),
+    // abilities — сколько раз сработало свойство роли (движок считает сам: второй шаг Бегуна, проход Призрака и т. д.)
+    players: per.map((q, i) => ({ ...q, abilities: g.players[i].roleUses || 0, think: q.think.length ? Math.round(median(q.think)) : null })),
   };
 }
 
@@ -163,7 +163,7 @@ function buildStats(db, days) {
   const withHumans = games.filter((g) => g.humans > 0);
 
   // роли: доля побед (все игры и только люди)
-  const roles = Object.fromEntries(Object.keys(ROLES).map((r) => [r, { name: ROLES[r].name, n: 0, w: 0, exp: 0, hn: 0, hw: 0, hexp: 0 }]));
+  const roles = Object.fromEntries(Object.keys(ROLES).map((r) => [r, { name: ROLES[r].name, n: 0, w: 0, exp: 0, hn: 0, hw: 0, hexp: 0, use: 0 }]));
   // первый ход и размер поля
   const seat0 = {}, bySize = {}, byN = {}, modes = {}, botLevels = {}, optsUse = { roles: 0, bonus: 0, total: games.length };
   // люди против ботов
@@ -184,7 +184,7 @@ function buildStats(db, days) {
     g.players.forEach((p, i) => {
       const win = g.winner === i;
       // exp — сколько побед было бы при идеальном балансе (1 из n)
-      if (p.role) { const r = roles[p.role]; r.n++; r.exp += 1 / g.n; if (win) r.w++; if (!p.bot) { r.hn++; r.hexp += 1 / g.n; if (win) r.hw++; } }
+      if (p.role) { const r = roles[p.role]; r.n++; r.exp += 1 / g.n; r.use += p.abilities ?? p.breaks + p.rotates; if (win) r.w++; if (!p.bot) { r.hn++; r.hexp += 1 / g.n; if (win) r.hw++; } }
     });
     const hum = g.players.filter((p) => !p.bot), bots = g.players.filter((p) => p.bot);
     if (hum.length && bots.length) {
@@ -195,7 +195,7 @@ function buildStats(db, days) {
   }
   for (const g of games) for (const p of g.players) {
     const m = mix[p.bot ? 'bot' : 'human'];
-    m.moves += p.moves; m.walls += p.walls; m.role += p.breaks + p.rotates; m.turns += p.turns;
+    m.moves += p.moves; m.walls += p.walls; m.role += p.abilities ?? p.breaks + p.rotates; m.turns += p.turns;
     for (const [c, k] of Object.entries(p.cards)) { m.cards += k; if (cards[c]) cards[c][p.bot ? 'bot' : 'human'] += k; }
     if (!p.bot && p.think != null) think.push(p.think);
   }
