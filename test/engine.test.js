@@ -102,6 +102,29 @@ for (const size of SIZES) for (const n of [2, 4]) for (const level of BOT_LEVELS
   assert.ok(act(c, { t: 'card', c: 0 }).ok && act(c, { t: 'card', c: 0 }).ok, 'Картёжник играет две карты за ход');
 }
 
+// 5б. Втроём и вчетвером обмен стены на мобильность дороже: раз в два хода, без возврата стены, проход за две стены.
+{
+  const next = (g, who) => { do act(g, { t: 'end' }); while (g.turn !== who); };
+  const r = plain(4, {}, 'runner');
+  assert.equal(stepBudget(r), 2); act(r, { t: 'move', x: 4, y: 9 - 3 }); // любой ход на две клетки
+  next(r, 0); assert.equal(stepBudget(r), 1, 'Бегуну вчетвером — второй шаг раз в два хода');
+  next(r, 0); assert.equal(stepBudget(r), 2, 'через ход снова можно');
+
+  const s = plain(4, {}, 'sapper'); s.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }, { o: 'v', x: 4, y: 8, owner: 1 }); rebuild(s);
+  const w0 = cur(s).walls;
+  assert.ok(act(s, { t: 'break', i: 0 }).ok); assert.equal(cur(s).walls, w0, 'вчетвером Сапёр стену не забирает');
+  next(s, 0); assert.equal(options(s).brk, false, 'и ломает раз в два хода');
+
+  const ar = plain(4, {}, 'architect');
+  assert.equal(stepBudget(ar), 2, 'вчетвером Архитектор может шагнуть второй раз…');
+  act(ar, { t: 'move', x: 4, y: 6 }); assert.equal(wallBudget(ar), 0, '…вместо обеих стен');
+  assert.equal(stepBudget(plain(2, {}, 'architect')), 1, 'вдвоём — нет');
+
+  const gh = plain(4, {}, 'ghost'); gh.walls.push({ o: 'h', x: 4, y: 7, owner: 1 }); rebuild(gh);
+  const k = cur(gh).walls; act(gh, { t: 'move', x: 4, y: 7 });
+  assert.equal(cur(gh).walls, k - 2, 'Призрак вчетвером платит две стены');
+}
+
 // 6. Карты: заморозка, снос, поворот, смещение, запас; поворот не может закрыть путь.
 {
   const g = plain(); cur(g).hand = ['freeze'];

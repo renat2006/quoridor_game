@@ -392,7 +392,8 @@ function renderGame() {
     $('#roleIc').innerHTML = A.icon('break', 20); $('#roleName').textContent = 'Сломать'; $('#aRole').textContent = 'вместо стены';
     $('#roleBtn').title = `Сапёр: ${E.ROLES.sapper.text} (E)`;
   }
-  $('#roleHint').innerHTML = p.role ? `${A.icon(A.ROLE_ICON[p.role], 14)}<span><b>${E.ROLES[p.role].name}.</b> ${E.ROLES[p.role].text}</span>` : '';
+  const R = p.role && E.ROLES[p.role], rmany = R && g.n > 2 && R.many ? ` (${R.many})` : '';
+  $('#roleHint').innerHTML = R ? `${A.icon(A.ROLE_ICON[p.role], 14)}<span><b>${R.name}.</b> ${R.text}${rmany}</span>` : '';
   $('#aMove').textContent = E.stepBudget(g) > 1 ? `×${E.stepBudget(g)}` : '';
   $('#aWall').textContent = `${p.walls} шт.`;
   $$('#acts button').forEach((b) => {

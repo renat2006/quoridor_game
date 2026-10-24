@@ -17,7 +17,15 @@ export const RULES = { firstWall: false, walls: { 7: 7, 9: 10, 11: 13 }, share: 
   roleWalls: { runner: 3, architect: 4, ghost: -1, mason: -1, sapper: 0, gambler: 0 },
   sapperSlot: false, sapperRefund: true, masonSturdy: true, architectTrade: false, ghostCost: 1, gamblerHand: 3, gamblerDraw: 2, gamblerEvery: 2, reserve: 2,
   // карты редкие: новая карта раз в drawEvery своих ходов, в колоде мало карт против стен — стены решают исход
-  drawEvery: 2, startHand: 2, deck: { dash: 3, demolish: 2, turn: 2, shift: 2, freeze: 3, reserve: 3 } };
+  drawEvery: 2, startHand: 2, deck: { dash: 3, demolish: 2, turn: 2, shift: 2, freeze: 3, reserve: 3 },
+  // в партии на 3–4 в игрока летят стены от всех соперников, а своя стена мешает лишь одному:
+  // обмен слота стены на мобильность (Бегун, Призрак, Сапёр) стоит дороже, поэтому его цена выше
+  many: { ghostCost: 2, sapperRefund: false, runnerEvery: 2, sapperEvery: 2, ghostEvery: 2,
+    roleWalls: { architect: 0, mason: 0 },
+    // строителям (стены — общее благо для всех соперников лидера) даётся личная выгода: второй шаг вместо стены
+    stepTrade: ['architect', 'mason'] } };
+/* Правило с поправкой на число игроков. */
+const rule = (g, k) => (g.n > 2 && k in RULES.many ? RULES.many[k] : RULES[k] ?? 1);
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 export const key = (x, y) => x + ',' + y;
 
@@ -32,11 +40,11 @@ export const CARDS = {
 };
 /* Роли — постоянные свойства, действуют всю партию. Каждая меняет одно правило игры. */
 export const ROLES = {
-  runner: { name: 'Бегун', text: 'Может сделать второй шаг вместо стены' },
-  architect: { name: 'Архитектор', text: 'Ставит две стены за ход' },
-  ghost: { name: 'Призрак', text: 'Может шагнуть сквозь стену вместо своей стены в этом ходу (тратит стену из запаса)' },
-  mason: { name: 'Каменщик', text: 'Его стены нельзя снести, сломать или повернуть' },
-  sapper: { name: 'Сапёр', text: 'Вместо стены может сломать стену рядом с собой и забрать её' },
+  runner: { name: 'Бегун', text: 'Может сделать второй шаг вместо стены', many: 'втроём и вчетвером — раз в два хода' },
+  architect: { name: 'Архитектор', text: 'Ставит две стены за ход', many: 'втроём и вчетвером раз в два хода может вместо стен сделать второй шаг' },
+  ghost: { name: 'Призрак', text: 'Может шагнуть сквозь стену вместо своей стены в этом ходу (тратит стену из запаса)', many: 'втроём и вчетвером — раз в два хода и за две стены' },
+  mason: { name: 'Каменщик', text: 'Его стены нельзя снести, сломать или повернуть', many: 'втроём и вчетвером раз в два хода может сделать второй шаг вместо стены' },
+  sapper: { name: 'Сапёр', text: 'Вместо стены может сломать стену рядом с собой и забрать её', many: 'втроём и вчетвером — раз в два хода, стена не возвращается' },
   gambler: { name: 'Картёжник', text: 'Берёт по 2 карты, играет две за ход' },
 };
 export const BONUS = { wall: '+2 стены', card: '+карта', energy: '+шаг' };
@@ -84,7 +92,7 @@ export function newGame(seats, opts = {}, rng = Math.random) {
     players: seats.map((s, i) => {
       const [x, y] = startOf(size, order[i]), role = roles[i] || null;
       return { i, side: order[i], name: s.name, bot: !!s.bot, color: COLORS[i], x, y, role,
-        walls: Math.max(0, stock + (RULES.roleWalls[role] || 0)), hand: [], frozen: false, roleUses: 0 };
+        walls: Math.max(0, stock + (RULES.roleWalls[role] || 0) + (n > 2 ? RULES.many.roleWalls[role] || 0 : 0)), hand: [], frozen: false, roleUses: 0 };
     }),
   };
   for (const c of Object.keys(CARDS)) for (let k = 0; k < (RULES.deck[c] ?? 4); k++) g.deck.push(c);
@@ -176,8 +184,14 @@ export function dist(g, p) {
    Призрак может пройти сквозь стену, пока в этом ходу не ставил стену: проход займёт её слот. */
 export function stepBudget(g) {
   if (g.over) return 0;
-  // Бегун: пока стена не поставлена, может потратить её слот на второй шаг
-  const extra = cur(g).role === 'runner' && g.t.walls === 0 && g.t.wallCap > 0 && g.t.stepCap > 0 ? 1 : 0;
+  // Бегун: пока стена не поставлена, может потратить её слот на второй шаг (вчетвером — раз в runnerEvery ходов)
+  const p = cur(g), own = Math.floor(g.turns / g.n);
+  const trade = g.t.walls === 0 && g.t.wallCap > 0 && g.t.stepCap > 0;
+  const ready = own - (p.ranAt ?? -99) >= rule(g, 'runnerEvery');
+  const run = p.role === 'runner' && trade && ready;
+  // втроём и вчетвером строители тоже могут шагнуть второй раз вместо стены — в том же ритме, что Бегун
+  const build = g.n > 2 && trade && ready && (RULES.many.stepTrade || []).includes(p.role);
+  const extra = run || build ? 1 : 0;
   return Math.max(0, g.t.stepCap + extra - g.t.steps);
 }
 /* Сколько стен ещё можно в этом ходу. Архитектор, пока не шагал, может потратить слот шага на вторую стену. */
@@ -186,7 +200,9 @@ export function wallBudget(g) {
   const extra = cur(g).role === 'architect' && g.t.wallCap > 0 && (!RULES.architectTrade || (g.t.steps === 0 && g.t.stepCap > 0)) ? 1 : 0;
   return Math.max(0, g.t.wallCap + extra - g.t.walls);
 }
-export function crossBudget(g, p = cur(g)) { return p.role === 'ghost' && wallBudget(g) > 0 && p.walls >= RULES.ghostCost ? 1 : 0; }
+export function crossBudget(g, p = cur(g)) {
+  return p.role === 'ghost' && wallBudget(g) > 0 && p.walls >= rule(g, 'ghostCost') && Math.floor(g.turns / g.n) - (p.ghostAt ?? -99) >= rule(g, 'ghostEvery') ? 1 : 0;
+}
 
 /* Куда можно дойти: клетка → { d: шагов, c: проходов сквозь стену }. Соседнюю фишку можно перепрыгнуть
    (один шаг), а если за ней стена или край — обойти по диагонали. Бегун шагает и по диагонали. */
@@ -257,6 +273,8 @@ export function shiftCells(g, p = cur(g)) {
   }
   return out;
 }
+/* Сапёр ломает не чаще раза в sapperEvery своих ходов (вдвоём — каждый ход). */
+const sapperReady = (g, p) => Math.floor(g.turns / g.n) - (p.brokeAt ?? -99) >= rule(g, 'sapperEvery');
 /* Можно ли сыграть карту c прямо сейчас (с целью — есть ли подходящая стена или клетка). */
 function cardPlayable(g, c) {
   if (c === 'demolish') return g.walls.some((w, i) => !sturdy(g, i));
@@ -274,7 +292,7 @@ export function options(g) {
   const wall = wallSlot && p.walls > 0;
   const card = g.t.cards < g.t.cardCap && p.hand.some((c) => cardPlayable(g, c));
   const brkSlot = RULES.sapperSlot ? !g.t.broke : wallSlot;
-  const brk = brkSlot && p.role === 'sapper' && g.walls.some((w, i) => wallNear(g, i, p) && !sturdy(g, i));
+  const brk = brkSlot && p.role === 'sapper' && sapperReady(g, p) && g.walls.some((w, i) => wallNear(g, i, p) && !sturdy(g, i));
   return { move, wall, card, brk, any: move || wall || card || brk };
 }
 
@@ -294,9 +312,14 @@ export function act(g, a, rng = Math.random) {
       const r = reach(g, p).get(key(a.x, a.y));
       if (!r) return bad('Туда не дойти');
       g.t.steps += r.d;
-      if (r.c) { g.t.walls = g.t.wallCap; p.walls -= RULES.ghostCost; } // Призрак прошёл сквозь стену — вместо стены в этом ходу
+      if (r.c) { g.t.walls = g.t.wallCap; p.walls -= rule(g, 'ghostCost'); p.ghostAt = Math.floor(g.turns / g.n); } // Призрак прошёл сквозь стену — вместо стены в этом ходу
       // второй шаг Бегуна занял слот стены
-      if (p.role === 'runner' && g.t.steps > g.t.stepCap) { g.t.walls = g.t.wallCap; roleUsed(g, p); }
+      // второй шаг вместо стены (Бегун; втроём и вчетвером — и строители) занял слот стены
+      if (g.t.steps > g.t.stepCap && g.t.walls === 0) {
+        g.t.walls = g.t.wallCap + (p.role === 'architect' ? 1 : 0);
+        p.ranAt = Math.floor(g.turns / g.n);
+        roleUsed(g, p);
+      }
       if (r.c) roleUsed(g, p);
       const from = [p.x, p.y]; p.x = a.x; p.y = a.y;
       log(g, `${p.name} шагнул${r.c ? ' сквозь стену' : ''}`, p.i);
@@ -355,7 +378,8 @@ export function act(g, a, rng = Math.random) {
       if (!(Number.isInteger(a.i) && g.walls[a.i])) return bad('Такой стены нет');
       if (!wallNear(g, a.i, p)) return bad('Сапёр ломает только стену рядом с собой');
       if (sturdy(g, a.i)) return bad('Стены Каменщика не ломаются');
-      const w = removeWall(g, a.i); if (RULES.sapperRefund) p.walls++; roleUsed(g, p);
+      if (!sapperReady(g, p)) return bad('Сломать снова можно через ход');
+      const w = removeWall(g, a.i); if (rule(g, 'sapperRefund')) p.walls++; p.brokeAt = Math.floor(g.turns / g.n); roleUsed(g, p);
       if (RULES.sapperSlot) g.t.broke = 1; else g.t.walls++;
       log(g, `${p.name} сломал стену`, p.i); fx(g, 'break', { p: p.i, o: w.o, x: w.x, y: w.y });
       break;
@@ -372,7 +396,7 @@ export function act(g, a, rng = Math.random) {
 
 /* ======================== Запись и повтор партий ======================== */
 // Версия правил в записях: поднимайте при любом изменении правил или RULES — старые повторы иначе разойдутся.
-export const RULES_VERSION = 3;
+export const RULES_VERSION = 4;
 // Детерминированный генератор (mulberry32): то же зерно и те же действия дают ту же партию.
 export function seededRng(seed) {
   let s = seed >>> 0;
